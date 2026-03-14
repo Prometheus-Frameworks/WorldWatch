@@ -58,7 +58,12 @@ export async function persistNormalizedSignals(
     await db.query(
       `INSERT INTO normalized_signals (
          region_id, source_id, signal_type, value, unit, event_time, metadata_json
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+       ON CONFLICT (region_id, source_id, signal_type, event_time) DO UPDATE
+       SET value = EXCLUDED.value,
+           unit = EXCLUDED.unit,
+           metadata_json = EXCLUDED.metadata_json,
+           ingested_at = NOW()`,
       [
         signal.regionId,
         signal.sourceId,
