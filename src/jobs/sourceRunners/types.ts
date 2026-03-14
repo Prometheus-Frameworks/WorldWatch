@@ -10,6 +10,14 @@ export interface SourceRunnerContext {
   fetchJson?: JsonFetcher;
 }
 
+export interface SourceJobResult {
+  sourceName: string;
+  url: string;
+  recordsProcessed: number;
+  mappedRegions: number;
+  insertedSignals: number;
+}
+
 export const defaultJsonFetcher: JsonFetcher = async (url, init) => {
   const response = await (globalThis as unknown as { fetch: (input: string, init?: { headers?: Record<string, string> }) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }> }).fetch(url, init);
   if (!response.ok) {

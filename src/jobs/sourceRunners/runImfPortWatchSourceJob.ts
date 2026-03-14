@@ -2,7 +2,8 @@ import {
   ingestImfPortWatchObservations,
   type ImfPortWatchObservation,
 } from '../../ingestion/adapters/imfPortWatchAdapter.ts';
-import { defaultJsonFetcher, type SourceRunnerContext } from './types.ts';
+import { insertJobRun } from '../jobRunLogger.ts';
+import { defaultJsonFetcher, type SourceJobResult, type SourceRunnerContext } from './types.ts';
 
 interface ImfPortWatchApiResponse {
   data?: unknown[];
@@ -16,11 +17,47 @@ export interface RunImfPortWatchSourceJobInput extends SourceRunnerContext {
 
 export async function runImfPortWatchSourceJob(
   input: RunImfPortWatchSourceJobInput,
-): Promise<void> {
-  const fetchJson = input.fetchJson ?? defaultJsonFetcher;
-  const payload = await fetchJson(input.url, { headers: input.headers });
-  const observations = normalizeImfPortWatchResponse(payload);
-  await ingestImfPortWatchObservations(input.db, observations, input.fetchedAt ?? new Date());
+): Promise<SourceJobResult> {
+  const startedAt = new Date();
+
+  try {
+    const fetchJson = input.fetchJson ?? defaultJsonFetcher;
+    const payload = await fetchJson(input.url, { headers: input.headers });
+    const observations = normalizeImfPortWatchResponse(payload);
+    const stats = await ingestImfPortWatchObservations(input.db, observations, input.fetchedAt ?? new Date());
+
+    await insertJobRun(input.db, {
+      jobName: 'imf_portwatch',
+      jobType: 'source',
+      status: 'success',
+      startedAt,
+      finishedAt: new Date(),
+      recordsProcessed: stats.recordsProcessed,
+      metadata: {
+        source: 'imf_portwatch',
+        url: input.url,
+        mappedRegions: stats.mappedRegions,
+        insertedSignals: stats.insertedSignals,
+      },
+    });
+
+    return { sourceName: 'imf_portwatch', url: input.url, ...stats };
+  } catch (error) {
+    await insertJobRun(input.db, {
+      jobName: 'imf_portwatch',
+      jobType: 'source',
+      status: 'failed',
+      startedAt,
+      finishedAt: new Date(),
+      errorMessage: error instanceof Error ? error.message : String(error),
+      metadata: {
+        source: 'imf_portwatch',
+        url: input.url,
+      },
+    });
+
+    throw error;
+  }
 }
 
 function normalizeImfPortWatchResponse(payload: unknown): ImfPortWatchObservation[] {

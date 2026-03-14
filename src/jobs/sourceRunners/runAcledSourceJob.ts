@@ -1,5 +1,6 @@
 import { ingestAcledEvents, type AcledEvent } from '../../ingestion/adapters/acledAdapter.ts';
-import { defaultJsonFetcher, type SourceRunnerContext } from './types.ts';
+import { insertJobRun } from '../jobRunLogger.ts';
+import { defaultJsonFetcher, type SourceJobResult, type SourceRunnerContext } from './types.ts';
 
 interface AcledApiResponse {
   data?: unknown[];
@@ -10,11 +11,47 @@ export interface RunAcledSourceJobInput extends SourceRunnerContext {
   headers?: Record<string, string>;
 }
 
-export async function runAcledSourceJob(input: RunAcledSourceJobInput): Promise<void> {
-  const fetchJson = input.fetchJson ?? defaultJsonFetcher;
-  const payload = await fetchJson(input.url, { headers: input.headers });
-  const events = normalizeAcledResponse(payload);
-  await ingestAcledEvents(input.db, events, input.fetchedAt ?? new Date());
+export async function runAcledSourceJob(input: RunAcledSourceJobInput): Promise<SourceJobResult> {
+  const startedAt = new Date();
+
+  try {
+    const fetchJson = input.fetchJson ?? defaultJsonFetcher;
+    const payload = await fetchJson(input.url, { headers: input.headers });
+    const events = normalizeAcledResponse(payload);
+    const stats = await ingestAcledEvents(input.db, events, input.fetchedAt ?? new Date());
+
+    await insertJobRun(input.db, {
+      jobName: 'acled',
+      jobType: 'source',
+      status: 'success',
+      startedAt,
+      finishedAt: new Date(),
+      recordsProcessed: stats.recordsProcessed,
+      metadata: {
+        source: 'acled',
+        url: input.url,
+        mappedRegions: stats.mappedRegions,
+        insertedSignals: stats.insertedSignals,
+      },
+    });
+
+    return { sourceName: 'acled', url: input.url, ...stats };
+  } catch (error) {
+    await insertJobRun(input.db, {
+      jobName: 'acled',
+      jobType: 'source',
+      status: 'failed',
+      startedAt,
+      finishedAt: new Date(),
+      errorMessage: error instanceof Error ? error.message : String(error),
+      metadata: {
+        source: 'acled',
+        url: input.url,
+      },
+    });
+
+    throw error;
+  }
 }
 
 function normalizeAcledResponse(payload: unknown): AcledEvent[] {

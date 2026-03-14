@@ -5,6 +5,8 @@ CREATE TYPE status_band AS ENUM ('low', 'elevated', 'high', 'critical');
 CREATE TYPE confidence_band AS ENUM ('low', 'medium', 'high');
 CREATE TYPE freshness_state AS ENUM ('fresh', 'aging', 'stale');
 CREATE TYPE evidence_state AS ENUM ('confirmed', 'mixed', 'incomplete', 'unknown');
+CREATE TYPE job_run_type AS ENUM ('source', 'snapshot', 'cycle');
+CREATE TYPE job_run_status AS ENUM ('success', 'partial', 'failed');
 
 CREATE TABLE regions (
   id BIGSERIAL PRIMARY KEY,
@@ -108,3 +110,20 @@ CREATE TABLE alerts_feed (
 
 CREATE INDEX alerts_feed_snapshot_idx ON alerts_feed (snapshot_time DESC);
 CREATE INDEX alerts_feed_region_snapshot_idx ON alerts_feed (region_id, snapshot_time DESC);
+
+CREATE TABLE job_runs (
+  id BIGSERIAL PRIMARY KEY,
+  job_name TEXT NOT NULL,
+  job_type job_run_type NOT NULL,
+  status job_run_status NOT NULL,
+  started_at TIMESTAMPTZ NOT NULL,
+  finished_at TIMESTAMPTZ NOT NULL,
+  duration_ms BIGINT NOT NULL CHECK (duration_ms >= 0),
+  records_processed INTEGER NOT NULL DEFAULT 0,
+  error_message TEXT,
+  metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX job_runs_job_type_started_idx ON job_runs (job_type, started_at DESC);
+CREATE INDEX job_runs_job_name_started_idx ON job_runs (job_name, started_at DESC);

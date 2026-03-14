@@ -15,12 +15,20 @@ export interface ImfPortWatchObservation {
   transit_count?: number;
 }
 
+export interface IngestionStats {
+  recordsProcessed: number;
+  mappedRegions: number;
+  insertedSignals: number;
+}
+
 export async function ingestImfPortWatchObservations(
   db: QueryableDb,
   observations: ImfPortWatchObservation[],
   fetchedAt: Date = new Date(),
-): Promise<void> {
-  const sourceId = await getSourceId(db, 'imf-portwatch');
+): Promise<IngestionStats> {
+  const sourceId = await getSourceId(db, 'imf_portwatch');
+  let mappedRegions = 0;
+  let insertedSignals = 0;
 
   for (const observation of observations) {
     const eventTime = new Date(observation.observed_at);
@@ -36,35 +44,22 @@ export async function ingestImfPortWatchObservations(
     const regionIds = await resolveRegionIds(db, {
       latitude: observation.latitude,
       longitude: observation.longitude,
-      chokepointHint: observation.chokepoint,
       regionHint: observation.port_name,
+      chokepointHint: observation.chokepoint,
     });
 
     if (regionIds.length === 0) continue;
 
-    const congestion = Math.min(100, Math.max(0, observation.congestion_index ?? 0));
+    mappedRegions += regionIds.length;
+
+    const congestion = Math.max(0, Math.min(100, observation.congestion_index ?? 0));
     const delayHours = Math.max(0, observation.transit_delay_hours ?? 0);
-    const transitVolumeStress = Math.min(
-      100,
-      Math.max(0, 100 - Math.min(100, (observation.transit_count ?? 0) / 2)),
-    );
+    const transitVolume = Math.max(0, observation.transit_count ?? 0);
 
     const baseSignals = [
-      {
-        signalType: NORMALIZED_SIGNAL_TYPES.CHOKEPOINT_CONGESTION,
-        value: congestion,
-        unit: 'index',
-      },
-      {
-        signalType: NORMALIZED_SIGNAL_TYPES.CHOKEPOINT_DELAY_HOURS,
-        value: delayHours,
-        unit: 'hours',
-      },
-      {
-        signalType: NORMALIZED_SIGNAL_TYPES.CHOKEPOINT_TRANSIT_VOLUME,
-        value: transitVolumeStress,
-        unit: 'vessels',
-      },
+      { signalType: NORMALIZED_SIGNAL_TYPES.CHOKEPOINT_CONGESTION, value: congestion, unit: 'index' },
+      { signalType: NORMALIZED_SIGNAL_TYPES.CHOKEPOINT_DELAY_HOURS, value: delayHours, unit: 'hours' },
+      { signalType: NORMALIZED_SIGNAL_TYPES.CHOKEPOINT_TRANSIT_VOLUME, value: transitVolume, unit: 'vessels' },
     ] as const;
 
     const signals: PersistableSignal[] = regionIds.flatMap((regionId) =>
@@ -78,10 +73,14 @@ export async function ingestImfPortWatchObservations(
         metadataJson: {
           raw_event_id: rawEventId,
           chokepoint: observation.chokepoint,
+          port_name: observation.port_name,
         },
       })),
     );
 
+    insertedSignals += signals.length;
     await persistNormalizedSignals(db, signals);
   }
+
+  return { recordsProcessed: observations.length, mappedRegions, insertedSignals };
 }
