@@ -1,5 +1,6 @@
 import { ingestGdeltEvents, type GdeltEvent } from '../../ingestion/adapters/gdeltAdapter.ts';
-import { defaultJsonFetcher, type SourceRunnerContext } from './types.ts';
+import { insertJobRun } from '../jobRunLogger.ts';
+import { defaultJsonFetcher, type SourceJobResult, type SourceRunnerContext } from './types.ts';
 
 interface GdeltApiResponse {
   events?: unknown[];
@@ -10,11 +11,47 @@ export interface RunGdeltSourceJobInput extends SourceRunnerContext {
   headers?: Record<string, string>;
 }
 
-export async function runGdeltSourceJob(input: RunGdeltSourceJobInput): Promise<void> {
-  const fetchJson = input.fetchJson ?? defaultJsonFetcher;
-  const payload = await fetchJson(input.url, { headers: input.headers });
-  const events = normalizeGdeltResponse(payload);
-  await ingestGdeltEvents(input.db, events, input.fetchedAt ?? new Date());
+export async function runGdeltSourceJob(input: RunGdeltSourceJobInput): Promise<SourceJobResult> {
+  const startedAt = new Date();
+
+  try {
+    const fetchJson = input.fetchJson ?? defaultJsonFetcher;
+    const payload = await fetchJson(input.url, { headers: input.headers });
+    const events = normalizeGdeltResponse(payload);
+    const stats = await ingestGdeltEvents(input.db, events, input.fetchedAt ?? new Date());
+
+    await insertJobRun(input.db, {
+      jobName: 'gdelt',
+      jobType: 'source',
+      status: 'success',
+      startedAt,
+      finishedAt: new Date(),
+      recordsProcessed: stats.recordsProcessed,
+      metadata: {
+        source: 'gdelt',
+        url: input.url,
+        mappedRegions: stats.mappedRegions,
+        insertedSignals: stats.insertedSignals,
+      },
+    });
+
+    return { sourceName: 'gdelt', url: input.url, ...stats };
+  } catch (error) {
+    await insertJobRun(input.db, {
+      jobName: 'gdelt',
+      jobType: 'source',
+      status: 'failed',
+      startedAt,
+      finishedAt: new Date(),
+      errorMessage: error instanceof Error ? error.message : String(error),
+      metadata: {
+        source: 'gdelt',
+        url: input.url,
+      },
+    });
+
+    throw error;
+  }
 }
 
 function normalizeGdeltResponse(payload: unknown): GdeltEvent[] {

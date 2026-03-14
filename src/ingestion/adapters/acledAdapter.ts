@@ -14,12 +14,20 @@ export interface AcledEvent {
   fatalities?: number;
 }
 
+export interface IngestionStats {
+  recordsProcessed: number;
+  mappedRegions: number;
+  insertedSignals: number;
+}
+
 export async function ingestAcledEvents(
   db: QueryableDb,
   events: AcledEvent[],
   fetchedAt: Date = new Date(),
-): Promise<void> {
+): Promise<IngestionStats> {
   const sourceId = await getSourceId(db, 'acled');
+  let mappedRegions = 0;
+  let insertedSignals = 0;
 
   for (const event of events) {
     const eventTime = new Date(event.event_date);
@@ -39,6 +47,8 @@ export async function ingestAcledEvents(
     });
 
     if (regionIds.length === 0) continue;
+
+    mappedRegions += regionIds.length;
 
     const fatalities = Math.max(0, event.fatalities ?? 0);
     const intensity = Math.min(100, fatalities * 8 + (event.event_type ? 15 : 5));
@@ -71,6 +81,9 @@ export async function ingestAcledEvents(
       })),
     );
 
+    insertedSignals += signals.length;
     await persistNormalizedSignals(db, signals);
   }
+
+  return { recordsProcessed: events.length, mappedRegions, insertedSignals };
 }

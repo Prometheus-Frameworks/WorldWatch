@@ -15,12 +15,20 @@ export interface GdeltEvent {
   GoldsteinScale?: number;
 }
 
+export interface IngestionStats {
+  recordsProcessed: number;
+  mappedRegions: number;
+  insertedSignals: number;
+}
+
 export async function ingestGdeltEvents(
   db: QueryableDb,
   events: GdeltEvent[],
   fetchedAt: Date = new Date(),
-): Promise<void> {
+): Promise<IngestionStats> {
   const sourceId = await getSourceId(db, 'gdelt');
+  let mappedRegions = 0;
+  let insertedSignals = 0;
 
   for (const event of events) {
     const eventTime = parseSqlDate(event.SQLDATE);
@@ -40,6 +48,8 @@ export async function ingestGdeltEvents(
     });
 
     if (regionIds.length === 0) continue;
+
+    mappedRegions += regionIds.length;
 
     const mentions = Math.max(0, event.NumMentions ?? 0);
     const negativeTone = Math.max(0, -(event.AvgTone ?? 0));
@@ -73,8 +83,11 @@ export async function ingestGdeltEvents(
       })),
     );
 
+    insertedSignals += signals.length;
     await persistNormalizedSignals(db, signals);
   }
+
+  return { recordsProcessed: events.length, mappedRegions, insertedSignals };
 }
 
 function parseSqlDate(value: string): Date {

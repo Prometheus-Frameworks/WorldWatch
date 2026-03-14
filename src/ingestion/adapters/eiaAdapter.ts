@@ -13,12 +13,20 @@ export interface EiaReading {
   rolling_stddev?: number;
 }
 
+export interface IngestionStats {
+  recordsProcessed: number;
+  mappedRegions: number;
+  insertedSignals: number;
+}
+
 export async function ingestEiaReadings(
   db: QueryableDb,
   readings: EiaReading[],
   fetchedAt: Date = new Date(),
-): Promise<void> {
+): Promise<IngestionStats> {
   const sourceId = await getSourceId(db, 'eia');
+  let mappedRegions = 0;
+  let insertedSignals = 0;
 
   for (const reading of readings) {
     const eventTime = new Date(reading.period);
@@ -39,6 +47,8 @@ export async function ingestEiaReadings(
     });
 
     if (regionIds.length === 0) continue;
+
+    mappedRegions += regionIds.length;
 
     const price = Math.max(0, reading.value);
     const volatility = Math.min(100, Math.max(0, (reading.rolling_stddev ?? 0) * 10));
@@ -67,6 +77,9 @@ export async function ingestEiaReadings(
       })),
     );
 
+    insertedSignals += signals.length;
     await persistNormalizedSignals(db, signals);
   }
+
+  return { recordsProcessed: readings.length, mappedRegions, insertedSignals };
 }

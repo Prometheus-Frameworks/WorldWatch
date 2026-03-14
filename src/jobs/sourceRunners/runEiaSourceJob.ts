@@ -1,5 +1,6 @@
 import { ingestEiaReadings, type EiaReading } from '../../ingestion/adapters/eiaAdapter.ts';
-import { defaultJsonFetcher, type SourceRunnerContext } from './types.ts';
+import { insertJobRun } from '../jobRunLogger.ts';
+import { defaultJsonFetcher, type SourceJobResult, type SourceRunnerContext } from './types.ts';
 
 interface EiaApiResponse {
   response?: {
@@ -13,11 +14,47 @@ export interface RunEiaSourceJobInput extends SourceRunnerContext {
   headers?: Record<string, string>;
 }
 
-export async function runEiaSourceJob(input: RunEiaSourceJobInput): Promise<void> {
-  const fetchJson = input.fetchJson ?? defaultJsonFetcher;
-  const payload = await fetchJson(input.url, { headers: input.headers });
-  const readings = normalizeEiaResponse(payload);
-  await ingestEiaReadings(input.db, readings, input.fetchedAt ?? new Date());
+export async function runEiaSourceJob(input: RunEiaSourceJobInput): Promise<SourceJobResult> {
+  const startedAt = new Date();
+
+  try {
+    const fetchJson = input.fetchJson ?? defaultJsonFetcher;
+    const payload = await fetchJson(input.url, { headers: input.headers });
+    const readings = normalizeEiaResponse(payload);
+    const stats = await ingestEiaReadings(input.db, readings, input.fetchedAt ?? new Date());
+
+    await insertJobRun(input.db, {
+      jobName: 'eia',
+      jobType: 'source',
+      status: 'success',
+      startedAt,
+      finishedAt: new Date(),
+      recordsProcessed: stats.recordsProcessed,
+      metadata: {
+        source: 'eia',
+        url: input.url,
+        mappedRegions: stats.mappedRegions,
+        insertedSignals: stats.insertedSignals,
+      },
+    });
+
+    return { sourceName: 'eia', url: input.url, ...stats };
+  } catch (error) {
+    await insertJobRun(input.db, {
+      jobName: 'eia',
+      jobType: 'source',
+      status: 'failed',
+      startedAt,
+      finishedAt: new Date(),
+      errorMessage: error instanceof Error ? error.message : String(error),
+      metadata: {
+        source: 'eia',
+        url: input.url,
+      },
+    });
+
+    throw error;
+  }
 }
 
 function normalizeEiaResponse(payload: unknown): EiaReading[] {
