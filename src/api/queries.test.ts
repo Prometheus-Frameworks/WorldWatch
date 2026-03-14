@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { QueryableDb } from '../ingestion/types.ts';
-import { getRegionDetail, getRegionSummaries } from './queries.ts';
+import {
+  getLatestCycleStatus,
+  getOpsHealth,
+  getRecentFailures,
+  getRegionDetail,
+  getRegionSummaries,
+  getSourceFreshness,
+} from './queries.ts';
 
 test('getRegionSummaries returns latest summary shape', async () => {
   const db: QueryableDb = {
@@ -89,4 +96,77 @@ test('getRegionDetail assembles score, deltas, recent signals and history', asyn
   assert.equal((detail as Record<string, unknown>).latest_score !== undefined, true);
   assert.equal(Array.isArray((detail as Record<string, unknown>).recent_signals), true);
   assert.equal(Array.isArray((detail as Record<string, unknown>).history), true);
+});
+
+test('ops queries return expected health and failure payloads', async () => {
+  const db: QueryableDb = {
+    async query<T>(sql: string) {
+      if (sql.includes("WHERE job_type = 'cycle'")) {
+        return {
+          rows: [{
+            id: 11,
+            job_name: 'worldwatch_cycle',
+            status: 'success',
+            started_at: '2026-01-01T00:00:00Z',
+            finished_at: '2026-01-01T00:01:00Z',
+            duration_ms: 60000,
+            records_processed: 100,
+            error_message: null,
+            metadata_json: {},
+          }] as T[],
+        };
+      }
+
+      if (sql.includes('FROM data_sources ds')) {
+        return {
+          rows: [
+            {
+              source_name: 'acled',
+              freshness_minutes: 120,
+              reliability_weight: 0.9,
+              last_success_at: '2026-01-01T00:00:00Z',
+              minutes_since_last_success: 50,
+              stale: false,
+            },
+            {
+              source_name: 'imf-portwatch',
+              freshness_minutes: 120,
+              reliability_weight: 0.8,
+              last_success_at: null,
+              minutes_since_last_success: null,
+              stale: true,
+            },
+          ] as T[],
+        };
+      }
+
+      if (sql.includes("WHERE status IN ('failed', 'partial')")) {
+        return {
+          rows: [{
+            id: 99,
+            job_name: 'gdelt',
+            job_type: 'source',
+            status: 'failed',
+            started_at: '2026-01-01T00:00:00Z',
+            finished_at: '2026-01-01T00:01:00Z',
+            error_message: 'boom',
+            metadata_json: {},
+          }] as T[],
+        };
+      }
+
+      return { rows: [] as T[] };
+    },
+  };
+
+  const latestCycle = await getLatestCycleStatus(db);
+  const sourceFreshness = await getSourceFreshness(db);
+  const failures = await getRecentFailures(db);
+  const health = await getOpsHealth(db);
+
+  assert.equal(latestCycle?.job_name, 'worldwatch_cycle');
+  assert.equal(sourceFreshness.length, 2);
+  assert.equal(failures.length, 1);
+  assert.equal(health.status, 'degraded');
+  assert.deepEqual(health.stale_sources, ['imf-portwatch']);
 });

@@ -14,6 +14,38 @@ export interface RegionSummary {
   delta_7d: number;
 }
 
+export interface LatestCycleStatus {
+  id: number;
+  job_name: string;
+  status: string;
+  started_at: string;
+  finished_at: string;
+  duration_ms: number;
+  records_processed: number;
+  error_message: string | null;
+  metadata_json: Record<string, unknown>;
+}
+
+export interface SourceFreshnessRow {
+  source_name: string;
+  freshness_minutes: number;
+  reliability_weight: number;
+  last_success_at: string | null;
+  minutes_since_last_success: number | null;
+  stale: boolean;
+}
+
+export interface RecentFailureRow {
+  id: number;
+  job_name: string;
+  job_type: string;
+  status: string;
+  started_at: string;
+  finished_at: string;
+  error_message: string | null;
+  metadata_json: Record<string, unknown>;
+}
+
 export async function getRegionSummaries(db: QueryableDb): Promise<RegionSummary[]> {
   const result = await db.query<RegionSummary>(
     `SELECT r.slug,
@@ -187,4 +219,92 @@ export async function getRegionHistory(db: QueryableDb, slug: string, limit = 10
   );
 
   return result.rows;
+}
+
+export async function getLatestCycleStatus(db: QueryableDb): Promise<LatestCycleStatus | null> {
+  const result = await db.query<LatestCycleStatus>(
+    `SELECT id,
+            job_name,
+            status::text AS status,
+            started_at,
+            finished_at,
+            duration_ms,
+            records_processed,
+            error_message,
+            metadata_json
+       FROM job_runs
+      WHERE job_type = 'cycle'
+      ORDER BY started_at DESC
+      LIMIT 1`,
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function getSourceFreshness(db: QueryableDb): Promise<SourceFreshnessRow[]> {
+  const result = await db.query<SourceFreshnessRow>(
+    `SELECT ds.name AS source_name,
+            ds.freshness_minutes,
+            ds.reliability_weight,
+            latest.last_success_at,
+            CASE
+              WHEN latest.last_success_at IS NULL THEN NULL
+              ELSE ROUND(EXTRACT(EPOCH FROM (NOW() - latest.last_success_at)) / 60.0)::INT
+            END AS minutes_since_last_success,
+            CASE
+              WHEN latest.last_success_at IS NULL THEN true
+              ELSE (NOW() - latest.last_success_at) > make_interval(mins => ds.freshness_minutes)
+            END AS stale
+       FROM data_sources ds
+       LEFT JOIN LATERAL (
+         SELECT jr.finished_at AS last_success_at
+           FROM job_runs jr
+          WHERE (jr.job_name = ds.name OR jr.job_name = REPLACE(ds.name, '-', '_'))
+            AND jr.job_type = 'source'
+            AND jr.status = 'success'
+          ORDER BY jr.finished_at DESC
+          LIMIT 1
+       ) latest ON true
+      ORDER BY ds.name ASC`,
+  );
+
+  return result.rows;
+}
+
+export async function getRecentFailures(db: QueryableDb, limit = 20): Promise<RecentFailureRow[]> {
+  const result = await db.query<RecentFailureRow>(
+    `SELECT id,
+            job_name,
+            job_type::text AS job_type,
+            status::text AS status,
+            started_at,
+            finished_at,
+            error_message,
+            metadata_json
+       FROM job_runs
+      WHERE status IN ('failed', 'partial')
+      ORDER BY started_at DESC
+      LIMIT $1`,
+    [limit],
+  );
+
+  return result.rows;
+}
+
+export async function getOpsHealth(db: QueryableDb): Promise<Record<string, unknown>> {
+  const [latestCycle, sourceFreshness, recentFailures] = await Promise.all([
+    getLatestCycleStatus(db),
+    getSourceFreshness(db),
+    getRecentFailures(db, 10),
+  ]);
+
+  const staleSources = sourceFreshness.filter((row) => row.stale).map((row) => row.source_name);
+
+  return {
+    status: latestCycle?.status === 'failed' || staleSources.length > 0 ? 'degraded' : 'ok',
+    latest_cycle: latestCycle,
+    stale_sources: staleSources,
+    stale_source_count: staleSources.length,
+    recent_failure_count: recentFailures.length,
+  };
 }

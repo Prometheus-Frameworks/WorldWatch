@@ -2,7 +2,16 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { URL } from 'node:url';
 
 import type { QueryableDb } from '../ingestion/types.ts';
-import { getFeed, getRegionDetail, getRegionHistory, getRegionSummaries } from './queries.ts';
+import {
+  getFeed,
+  getLatestCycleStatus,
+  getOpsHealth,
+  getRecentFailures,
+  getRegionDetail,
+  getRegionHistory,
+  getRegionSummaries,
+  getSourceFreshness,
+} from './queries.ts';
 
 export function createWorldWatchApiServer(db: QueryableDb) {
   return createServer(async (req, res) => {
@@ -31,6 +40,33 @@ async function routeRequest(db: QueryableDb, req: IncomingMessage, res: ServerRe
 
   if (path === '/api/feed') {
     sendJson(res, 200, await getFeed(db));
+    return;
+  }
+
+  if (path === '/api/ops/health') {
+    sendJson(res, 200, await getOpsHealth(db));
+    return;
+  }
+
+  if (path === '/api/ops/cycle/latest') {
+    const latestCycle = await getLatestCycleStatus(db);
+    if (!latestCycle) {
+      sendJson(res, 404, { error: 'not_found' });
+      return;
+    }
+    sendJson(res, 200, latestCycle);
+    return;
+  }
+
+  if (path === '/api/ops/source-freshness') {
+    sendJson(res, 200, await getSourceFreshness(db));
+    return;
+  }
+
+  if (path === '/api/ops/failures') {
+    const limitRaw = requestUrl.searchParams.get('limit');
+    const limit = limitRaw ? Number.parseInt(limitRaw, 10) : 20;
+    sendJson(res, 200, await getRecentFailures(db, Number.isFinite(limit) ? limit : 20));
     return;
   }
 
