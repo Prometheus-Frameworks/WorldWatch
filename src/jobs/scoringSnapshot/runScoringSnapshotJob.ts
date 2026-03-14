@@ -68,8 +68,9 @@ export async function runScoringSnapshotJob(
 
   for (const region of regions.rows) {
     const regionSignals = byRegion.get(region.id) ?? [];
-    const subScores = buildSubScores(regionSignals, config);
-    const health = buildSignalHealth(regionSignals, snapshotTime);
+    const latestSignals = selectLatestSignalsByType(regionSignals);
+    const subScores = buildSubScores(latestSignals, config);
+    const health = buildSignalHealth(latestSignals, snapshotTime);
     const score = calculateRegionScore(subScores, health);
 
     currentScores.set(region.id, score.compositeScore);
@@ -110,7 +111,7 @@ export async function runScoringSnapshotJob(
         score.confidenceBand,
         score.evidenceState,
         score.freshnessState,
-        JSON.stringify(buildFactors(regionSignals, config)),
+        JSON.stringify(buildFactors(latestSignals, config)),
         JSON.stringify([]),
       ],
     );
@@ -154,6 +155,31 @@ export async function runScoringSnapshotJob(
       );
     }
   }
+}
+
+function selectLatestSignalsByType(rows: SignalRow[]): SignalRow[] {
+  const latestByType = new Map<string, SignalRow>();
+
+  for (const row of rows) {
+    const current = latestByType.get(row.signal_type);
+    if (!current) {
+      latestByType.set(row.signal_type, row);
+      continue;
+    }
+
+    const eventTime = new Date(row.event_time);
+    const currentEventTime = new Date(current.event_time);
+    if (eventTime > currentEventTime) {
+      latestByType.set(row.signal_type, row);
+      continue;
+    }
+
+    if (eventTime.getTime() === currentEventTime.getTime() && new Date(row.ingested_at) > new Date(current.ingested_at)) {
+      latestByType.set(row.signal_type, row);
+    }
+  }
+
+  return [...latestByType.values()];
 }
 
 function buildSubScores(rows: SignalRow[], config: SnapshotJobConfig): SubScores {

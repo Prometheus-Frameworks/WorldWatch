@@ -56,6 +56,8 @@ CREATE TABLE normalized_signals (
 
 CREATE INDEX normalized_signals_region_time_idx ON normalized_signals (region_id, event_time DESC);
 CREATE INDEX normalized_signals_source_type_time_idx ON normalized_signals (source_id, signal_type, event_time DESC);
+CREATE UNIQUE INDEX normalized_signals_dedupe_idx
+  ON normalized_signals (region_id, source_id, signal_type, event_time);
 
 CREATE TABLE region_scores (
   id BIGSERIAL PRIMARY KEY,
