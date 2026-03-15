@@ -142,8 +142,6 @@ test('ops console data endpoints are fetch-compatible for the console', async ()
     '/api/ops/sources/runs',
     '/api/ops/source-freshness',
     '/api/ops/failures',
-    '/api/regions',
-    '/api/feed',
   ];
 
   for (const endpoint of endpoints) {
@@ -197,7 +195,9 @@ test('manual cycle trigger rejects overlap while run is in-flight', async () => 
 });
 
 
-test('server serves extracted ops console HTML shell', async () => {
+
+
+test('server serves analyst dashboard at root and ops at /ops', async () => {
   const db: QueryableDb = { query: async <T>() => ({ rows: [] as T[] }) };
   const server = createWorldWatchApiServer(db);
 
@@ -205,12 +205,15 @@ test('server serves extracted ops console HTML shell', async () => {
   const address = server.address();
   if (!address) throw new Error('Server address unavailable');
 
-  const response = await fetch(`http://127.0.0.1:${address.port}/ops`);
-  assert.equal(response.status, 200);
-  const html = await (response as unknown as { text: () => Promise<string> }).text();
-  assert.ok(html.includes('WorldWatch Internal Ops Console'));
-  assert.ok(html.includes('Recent cycle runs'));
-  assert.ok(html.includes('Recent source runs'));
+  const analystResponse = await fetch(`http://127.0.0.1:${address.port}/`);
+  assert.equal(analystResponse.status, 200);
+  const analystHtml = await (analystResponse as unknown as { text: () => Promise<string> }).text();
+  assert.ok(analystHtml.includes('WorldWatch Analyst Dashboard'));
+
+  const opsResponse = await fetch(`http://127.0.0.1:${address.port}/ops`);
+  assert.equal(opsResponse.status, 200);
+  const opsHtml = await (opsResponse as unknown as { text: () => Promise<string> }).text();
+  assert.ok(opsHtml.includes('WorldWatch Internal Ops Console'));
 
   await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
 });

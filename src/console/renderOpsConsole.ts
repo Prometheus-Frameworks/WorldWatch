@@ -17,10 +17,12 @@ export function renderOpsConsole(): string {
     h1, h2 { margin: 0 0 8px; }
     p { margin: 6px 0; }
     pre { margin: 0; white-space: pre-wrap; max-height: 220px; overflow: auto; }
+    a { color: #7ec8ff; }
   </style>
 </head>
 <body>
   <h1>WorldWatch Internal Ops Console</h1>
+  <p><a href="/">Open analyst world-state dashboard →</a></p>
   <button id="trigger">Run Cycle</button>
   <span id="trigger-status"></span>
 
@@ -39,8 +41,6 @@ export function renderOpsConsole(): string {
   <section class="card"><h2>Recent source runs</h2><table id="source-runs-table"></table></section>
   <section class="card"><h2>Source freshness</h2><table id="freshness-table"></table></section>
   <section class="card"><h2>Recent failures</h2><table id="failures-table"></table></section>
-  <section class="card"><h2>Region summary</h2><table id="regions-table"></table></section>
-  <section class="card"><h2>Alerts/feed</h2><table id="feed-table"></table></section>
 
   <script>${getOpsConsoleClientScript()}</script>
 </body>

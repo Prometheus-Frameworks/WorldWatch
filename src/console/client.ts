@@ -6,9 +6,7 @@ export function getOpsConsoleClientScript(): string {
       cycleRuns: '/api/ops/cycles?limit=20',
       sourceRuns: '/api/ops/sources/runs?limit=50',
       freshness: '/api/ops/source-freshness',
-      failures: '/api/ops/failures?limit=20',
-      regions: '/api/regions',
-      feed: '/api/feed'
+      failures: '/api/ops/failures?limit=20'
     };
 
     const timeFmt = new Intl.DateTimeFormat('en', { dateStyle: 'short', timeStyle: 'medium' });
@@ -71,15 +69,13 @@ export function getOpsConsoleClientScript(): string {
     }
 
     async function loadOps() {
-      const [summary, latest, cycleRuns, sourceRuns, freshness, failures, regions, feed] = await Promise.all([
+      const [summary, latest, cycleRuns, sourceRuns, freshness, failures] = await Promise.all([
         fetchJson(endpointMap.summary, {}),
         fetchJson(endpointMap.latest, { error: 'No cycle runs yet' }),
         fetchJson(endpointMap.cycleRuns, []),
         fetchJson(endpointMap.sourceRuns, []),
         fetchJson(endpointMap.freshness, []),
-        fetchJson(endpointMap.failures, []),
-        fetchJson(endpointMap.regions, []),
-        fetchJson(endpointMap.feed, []),
+        fetchJson(endpointMap.failures, [])
       ]);
 
       renderLatestCycle(latest);
@@ -122,23 +118,6 @@ export function getOpsConsoleClientScript(): string {
         { key: 'error_message', header: 'Error' },
       ]);
 
-      renderTable('regions-table', regions.slice(0, 25), [
-        { key: 'name', header: 'Region' },
-        { key: 'composite_score', header: 'Score' },
-        { key: 'status_band', header: 'Status band' },
-        { key: 'delta_24h', header: 'Δ 24h' },
-        { key: 'delta_7d', header: 'Δ 7d' },
-        { key: 'snapshot_time', header: 'Snapshot', render: (v) => formatTimestamp(v) },
-      ]);
-
-      renderTable('feed-table', feed.slice(0, 20), [
-        { key: 'name', header: 'Region' },
-        { key: 'status_band', header: 'Status' },
-        { key: 'composite_score', header: 'Score' },
-        { key: 'delta_24h', header: 'Δ 24h' },
-        { key: 'delta_7d', header: 'Δ 7d' },
-        { key: 'snapshot_time', header: 'Snapshot', render: (v) => formatTimestamp(v) },
-      ]);
     }
 
     document.getElementById('trigger').addEventListener('click', async () => {
