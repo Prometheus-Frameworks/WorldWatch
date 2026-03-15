@@ -14,7 +14,7 @@ test('analyst console bootstrap includes consolidated dashboard endpoint and ref
   assert.ok(html.includes('const dashboardPayload = await fetchJson(endpointMap.analystDashboard, null);'));
   assert.ok(html.includes('setInterval(() => {'));
   assert.ok(html.includes('void loadDashboard();'));
-  assert.ok(html.includes('const signature = normalizedFeed'));
+  assert.ok(html.includes('const signature = getFeedSignature(feed);'));
   assert.ok(html.includes('if (signature === lastFeedSignature) return;'));
 });
 
