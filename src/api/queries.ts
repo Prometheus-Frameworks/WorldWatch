@@ -14,6 +14,10 @@ export interface RegionSummary {
   delta_7d: number;
 }
 
+export interface RegionGeoRow extends RegionSummary {
+  geometry: Record<string, unknown>;
+}
+
 export interface LatestCycleStatus {
   id: number;
   job_name: string;
@@ -135,6 +139,37 @@ export async function getRegionSummaries(db: QueryableDb): Promise<RegionSummary
   return result.rows;
 }
 
+export async function getRegionGeo(db: QueryableDb): Promise<RegionGeoRow[]> {
+  const result = await db.query<RegionGeoRow>(
+    `SELECT r.slug,
+            r.name,
+            r.type::text as type,
+            rs.composite_score,
+            rs.status_band::text as status_band,
+            rs.confidence_band::text as confidence_band,
+            rs.freshness_state::text as freshness_state,
+            rs.evidence_state::text as evidence_state,
+            rs.snapshot_time,
+            COALESCE(rd.delta_24h, 0) AS delta_24h,
+            COALESCE(rd.delta_7d, 0) AS delta_7d,
+            ST_AsGeoJSON(r.geometry::geometry)::jsonb AS geometry
+      FROM regions r
+      JOIN LATERAL (
+        SELECT *
+          FROM region_scores
+         WHERE region_id = r.id
+         ORDER BY snapshot_time DESC
+         LIMIT 1
+      ) rs ON true
+      LEFT JOIN region_deltas rd
+        ON rd.region_id = r.id
+       AND rd.snapshot_time = rs.snapshot_time
+      ORDER BY rs.composite_score DESC, r.slug ASC`,
+  );
+
+  return result.rows;
+}
+
 export async function getRegionDetail(db: QueryableDb, slug: string, historyLimit = 30, signalLimit = 25): Promise<Record<string, unknown> | null> {
   const latest = await db.query<Record<string, unknown>>(
     `SELECT r.id,
@@ -195,8 +230,10 @@ export async function getRegionDetail(db: QueryableDb, slug: string, historyLimi
     `SELECT rs.snapshot_time,
             rs.composite_score,
             rs.status_band::text as status_band,
+            rs.confidence_band::text as confidence_band,
             COALESCE(rd.delta_24h, 0) as delta_24h,
-            COALESCE(rd.delta_7d, 0) as delta_7d
+            COALESCE(rd.delta_7d, 0) as delta_7d,
+            COALESCE(rd.rank_movement, 0) as rank_movement
        FROM region_scores rs
        LEFT JOIN region_deltas rd
          ON rd.region_id = rs.region_id
@@ -373,6 +410,8 @@ export async function getRecentFailures(db: QueryableDb, limit = 20): Promise<Re
             status::text AS status,
             started_at,
             finished_at,
+            duration_ms,
+            records_processed,
             error_message,
             metadata_json
        FROM job_runs
