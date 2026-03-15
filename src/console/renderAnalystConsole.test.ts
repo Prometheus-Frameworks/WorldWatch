@@ -14,6 +14,8 @@ test('analyst console bootstrap includes consolidated dashboard endpoint and ref
   assert.ok(html.includes('const dashboardPayload = await fetchJson(endpointMap.analystDashboard, null);'));
   assert.ok(html.includes('setInterval(() => {'));
   assert.ok(html.includes('void loadDashboard();'));
+  assert.ok(html.includes('const signature = normalizedFeed'));
+  assert.ok(html.includes('if (signature === lastFeedSignature) return;'));
 });
 
 test('analyst console includes map-table coordination and triage readability affordances', () => {
@@ -26,5 +28,6 @@ test('analyst console includes map-table coordination and triage readability aff
   assert.ok(html.includes('.map-region.hover'));
   assert.ok(html.includes('Hover for a quick read. Click a region to lock table + detail selection.'));
   assert.ok(html.includes('id="triage-notes"'));
+  assert.ok(html.includes('Array.isArray(detail.triage_notes) ? detail.triage_notes : []'));
   assert.ok(html.includes('Largest bars indicate strongest risk pressure.'));
 });

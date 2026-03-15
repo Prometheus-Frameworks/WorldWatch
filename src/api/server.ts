@@ -5,6 +5,7 @@ import type { QueryableDb } from '../ingestion/types.ts';
 import type { RunWorldWatchCycleResult } from '../jobs/runWorldWatchCycle.ts';
 import {
   getAnalystSummary,
+  getAnalystDashboard,
   getFeed,
   getRegionGeo,
   getLatestCycleStatus,
@@ -145,18 +146,7 @@ async function routeRequest(
 
 
   if (path === '/api/analyst/dashboard') {
-    const [regions, regionsGeo, feed, summary] = await Promise.all([
-      getRegionSummaries(db),
-      getRegionGeo(db),
-      getFeed(db),
-      getAnalystSummary(db),
-    ]);
-    sendJson(res, 200, {
-      regions,
-      regions_geo: regionsGeo,
-      feed,
-      summary,
-    });
+    sendJson(res, 200, await getAnalystDashboard(db));
     return;
   }
 

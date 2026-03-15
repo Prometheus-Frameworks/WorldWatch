@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import type { QueryableDb } from '../ingestion/types.ts';
 import {
+  getAnalystDashboard,
   getAnalystSummary,
   getLatestCycleStatus,
   getRegionGeo,
@@ -141,6 +142,7 @@ test('getRegionDetail assembles score, deltas, recent signals and history', asyn
   assert.equal((detail as Record<string, unknown>).latest_score !== undefined, true);
   assert.equal(Array.isArray((detail as Record<string, unknown>).recent_signals), true);
   assert.equal(Array.isArray((detail as Record<string, unknown>).history), true);
+  assert.equal(Array.isArray((detail as Record<string, unknown>).triage_notes), true);
   const history = (detail as { history: Array<Record<string, unknown>> }).history;
   assert.equal(history[0].confidence_band, 'high');
   assert.equal(history[0].rank_movement, 3);
@@ -349,4 +351,68 @@ test('getAnalystSummary returns card and mover aggregates for dashboard', async 
   assert.equal(summary.cards.high_score_low_confidence_count, 1);
   assert.equal(summary.top_movers.by_24h.length, 2);
   assert.equal(summary.top_movers.by_7d.length, 2);
+});
+
+test('getAnalystDashboard includes dashboard-ready triage spotlight payload', async () => {
+  const db: QueryableDb = {
+    async query<T>(sql: string) {
+      if (sql.includes('ST_AsGeoJSON')) {
+        return {
+          rows: [{
+            slug: 'levant',
+            name: 'Levant',
+            type: 'cluster',
+            composite_score: 82,
+            status_band: 'high',
+            confidence_band: 'low',
+            freshness_state: 'stale',
+            evidence_state: 'partial',
+            snapshot_time: '2026-01-01T00:00:00Z',
+            delta_24h: 9,
+            delta_7d: 18,
+            geometry: { type: 'Polygon', coordinates: [[[30, 20], [31, 20], [31, 21], [30, 21], [30, 20]]] },
+          }] as T[],
+        };
+      }
+      if (sql.includes('FROM latest l')) {
+        return {
+          rows: [{
+            slug: 'levant',
+            name: 'Levant',
+            composite_score: 82,
+            status_band: 'high',
+            confidence_band: 'low',
+            freshness_state: 'stale',
+            evidence_state: 'partial',
+            snapshot_time: '2026-01-01T00:00:00Z',
+            delta_24h: 9,
+            delta_7d: 18,
+          }] as T[],
+        };
+      }
+      return {
+        rows: [{
+          slug: 'levant',
+          name: 'Levant',
+          type: 'cluster',
+          composite_score: 82,
+          status_band: 'high',
+          confidence_band: 'low',
+          freshness_state: 'stale',
+          evidence_state: 'partial',
+          snapshot_time: '2026-01-01T00:00:00Z',
+          delta_24h: 9,
+          delta_7d: 18,
+        }] as T[],
+      };
+    },
+  };
+
+  const payload = await getAnalystDashboard(db);
+  assert.equal(payload.regions.length, 1);
+  assert.equal(payload.regions_geo.length, 1);
+  assert.equal(payload.feed.length, 1);
+  assert.equal(payload.triage_summary.spotlight.length, 1);
+  assert.equal(payload.triage_summary.spotlight[0].slug, 'levant');
+  assert.equal(payload.triage_summary.spotlight[0].notes[0]?.title, 'Top mover (24h)');
 });
