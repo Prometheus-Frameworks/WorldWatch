@@ -91,6 +91,20 @@ export interface OpsSummary {
   latest_snapshot_alerts_generated: number;
   latest_snapshot_regions_scored: number;
 }
+
+export interface AnalystSummary {
+  cards: {
+    hottest_region: RegionSummary | null;
+    biggest_24h_mover: RegionSummary | null;
+    biggest_7d_mover: RegionSummary | null;
+    stale_high_risk_count: number;
+    high_score_low_confidence_count: number;
+  };
+  top_movers: {
+    by_24h: RegionSummary[];
+    by_7d: RegionSummary[];
+  };
+}
 export async function getRegionSummaries(db: QueryableDb): Promise<RegionSummary[]> {
   const result = await db.query<RegionSummary>(
     `SELECT r.slug,
@@ -236,6 +250,9 @@ export async function getFeed(db: QueryableDb, limit = 50): Promise<Record<strin
             r.name,
             rs.composite_score,
             rs.status_band::text as status_band,
+            rs.confidence_band::text as confidence_band,
+            rs.freshness_state::text as freshness_state,
+            rs.evidence_state::text as evidence_state,
             l.snapshot_time,
             l.delta_24h,
             l.delta_7d
@@ -274,6 +291,28 @@ export async function getRegionHistory(db: QueryableDb, slug: string, limit = 10
   );
 
   return result.rows;
+}
+
+export async function getAnalystSummary(db: QueryableDb): Promise<AnalystSummary> {
+  const regions = await getRegionSummaries(db);
+
+  const hottest = [...regions].sort((a, b) => b.composite_score - a.composite_score)[0] ?? null;
+  const by24h = [...regions].sort((a, b) => Math.abs(b.delta_24h) - Math.abs(a.delta_24h));
+  const by7d = [...regions].sort((a, b) => Math.abs(b.delta_7d) - Math.abs(a.delta_7d));
+
+  return {
+    cards: {
+      hottest_region: hottest,
+      biggest_24h_mover: by24h[0] ?? null,
+      biggest_7d_mover: by7d[0] ?? null,
+      stale_high_risk_count: regions.filter((row) => row.status_band === 'high' && row.freshness_state !== 'fresh').length,
+      high_score_low_confidence_count: regions.filter((row) => row.status_band === 'high' && row.confidence_band === 'low').length,
+    },
+    top_movers: {
+      by_24h: by24h.slice(0, 5),
+      by_7d: by7d.slice(0, 5),
+    },
+  };
 }
 
 export async function getLatestCycleStatus(db: QueryableDb): Promise<LatestCycleStatus | null> {

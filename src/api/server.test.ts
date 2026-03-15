@@ -137,6 +137,7 @@ test('ops console data endpoints are fetch-compatible for the console', async ()
 
   const endpoints = [
     '/api/ops/summary',
+    '/api/analyst/summary',
     '/api/ops/cycle/latest',
     '/api/ops/cycles',
     '/api/ops/sources/runs',
@@ -301,6 +302,44 @@ test('ops history endpoints return dashboard-shaped rows', async () => {
   const sourcePayload = (await sourceResponse.json()) as Array<Record<string, unknown>>;
   assert.equal(sourcePayload[0].source_name, 'imf-portwatch');
   assert.equal(sourcePayload[0].mapped_regions, 3);
+
+  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+});
+
+
+test('server exposes analyst summary endpoint', async () => {
+  const db: QueryableDb = {
+    async query<T>(sql: string) {
+      if (sql.includes('FROM regions r')) {
+        return {
+          rows: [{
+            slug: 'levant',
+            name: 'Levant',
+            type: 'cluster',
+            composite_score: 80,
+            status_band: 'high',
+            confidence_band: 'low',
+            freshness_state: 'stale',
+            evidence_state: 'partial',
+            snapshot_time: '2026-01-01T00:00:00Z',
+            delta_24h: 6,
+            delta_7d: 12,
+          }] as T[],
+        };
+      }
+      return { rows: [] as T[] };
+    },
+  };
+
+  const server = createWorldWatchApiServer(db);
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  if (!address) throw new Error('Server address unavailable');
+
+  const response = await fetch(`http://127.0.0.1:${address.port}/api/analyst/summary`);
+  assert.equal(response.status, 200);
+  const payload = (await response.json()) as Record<string, unknown>;
+  assert.equal(typeof payload.cards, 'object');
 
   await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
 });

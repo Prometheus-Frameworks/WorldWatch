@@ -3,13 +3,15 @@ export function getAnalystConsoleClientScript(): string {
     const endpointMap = {
       regions: '/api/regions',
       feed: '/api/feed',
+      analystSummary: '/api/analyst/summary',
       regionDetail: (slug) => '/api/regions/' + encodeURIComponent(slug),
-      regionHistory: (slug) => '/api/history/' + encodeURIComponent(slug),
     };
 
     const timeFmt = new Intl.DateTimeFormat('en', { dateStyle: 'short', timeStyle: 'medium' });
     let regions = [];
     let activeRegionSlug = null;
+    let lastDetailSnapshotByRegion = new Map();
+    let topMoverSlugs = new Set();
 
     function formatTimestamp(value) {
       if (!value) return '-';
@@ -21,9 +23,65 @@ export function getAnalystConsoleClientScript(): string {
       return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '-';
     }
 
+    function getSelectValue(id) {
+      const node = document.getElementById(id);
+      return node instanceof HTMLSelectElement ? node.value : 'all';
+    }
+
+    function getInputValue(id) {
+      const node = document.getElementById(id);
+      return node instanceof HTMLInputElement ? node.value : '';
+    }
+
+    function getCheckboxValue(id) {
+      const node = document.getElementById(id);
+      return node instanceof HTMLInputElement ? node.checked : false;
+    }
+
+    function populateFilterOptions(rows) {
+      const fields = [
+        ['filter-status-band', 'status_band'],
+        ['filter-confidence-band', 'confidence_band'],
+        ['filter-freshness-state', 'freshness_state'],
+        ['filter-evidence-state', 'evidence_state'],
+      ];
+
+      for (const [id, key] of fields) {
+        const select = document.getElementById(id);
+        if (!(select instanceof HTMLSelectElement)) continue;
+        const values = Array.from(new Set(rows.map((row) => String(row[key] ?? '')).filter(Boolean))).sort();
+        const current = select.value || 'all';
+        select.innerHTML = '<option value="all">All</option>' + values.map((value) => '<option value="' + value + '">' + value + '</option>').join('');
+        if (values.includes(current)) {
+          select.value = current;
+        } else {
+          select.value = 'all';
+        }
+      }
+    }
+
+    function filterRegions(rows) {
+      const statusBand = getSelectValue('filter-status-band');
+      const confidenceBand = getSelectValue('filter-confidence-band');
+      const freshnessState = getSelectValue('filter-freshness-state');
+      const evidenceState = getSelectValue('filter-evidence-state');
+      const search = getInputValue('region-search').trim().toLowerCase();
+      const topMoversOnly = getCheckboxValue('top-movers-only');
+
+      return rows.filter((row) => {
+        if (statusBand !== 'all' && row.status_band !== statusBand) return false;
+        if (confidenceBand !== 'all' && row.confidence_band !== confidenceBand) return false;
+        if (freshnessState !== 'all' && row.freshness_state !== freshnessState) return false;
+        if (evidenceState !== 'all' && row.evidence_state !== evidenceState) return false;
+        if (search && !String(row.name ?? '').toLowerCase().includes(search)) return false;
+        if (topMoversOnly && !topMoverSlugs.has(row.slug)) return false;
+        return true;
+      });
+    }
+
     function sortRegions(rows) {
-      const key = document.getElementById('region-sort').value;
-      const dir = document.getElementById('region-sort-direction').value === 'asc' ? 1 : -1;
+      const key = getSelectValue('region-sort');
+      const dir = getSelectValue('region-sort-direction') === 'asc' ? 1 : -1;
       return [...rows].sort((a, b) => {
         const left = Number(a[key] ?? 0);
         const right = Number(b[key] ?? 0);
@@ -32,16 +90,18 @@ export function getAnalystConsoleClientScript(): string {
       });
     }
 
-    function renderRegionsTable(rows) {
+    function renderRegionsTable(allRows) {
       const table = document.getElementById('regions-table');
-      if (!Array.isArray(rows) || rows.length === 0) {
-        table.innerHTML = '<tr><td>No region snapshots yet</td></tr>';
+      if (!(table instanceof HTMLTableElement)) return;
+      const filtered = filterRegions(Array.isArray(allRows) ? allRows : []);
+      if (filtered.length === 0) {
+        table.innerHTML = '<tr><td>No regions match the current filters</td></tr>';
         return;
       }
 
-      const sorted = sortRegions(rows);
+      const sorted = sortRegions(filtered);
       const header = '<tr>' + [
-        'Region', 'Score', 'Status', 'Confidence', 'Freshness', 'Evidence', 'Δ 24h', 'Δ 7d', 'Snapshot'
+        'Region', 'Composite risk', 'Status band', 'Confidence', 'Freshness', 'Evidence', 'Δ 24h', 'Δ 7d', 'Latest snapshot'
       ].map((value) => '<th>' + value + '</th>').join('') + '</tr>';
 
       const body = sorted.map((row) => {
@@ -62,6 +122,33 @@ export function getAnalystConsoleClientScript(): string {
       table.innerHTML = header + body;
     }
 
+    function renderSummaryCards(summary) {
+      const container = document.getElementById('summary-cards');
+      if (!(container instanceof HTMLElement)) return;
+      if (!summary || !summary.cards) {
+        container.innerHTML = '<div class="summary-card"><p class="summary-label">Summary</p><p class="summary-value">No summary data</p></div>';
+        return;
+      }
+
+      const cards = summary.cards;
+      const hottest = cards.hottest_region;
+      const mover24h = cards.biggest_24h_mover;
+      const mover7d = cards.biggest_7d_mover;
+
+      container.innerHTML = [
+        '<article class="summary-card"><p class="summary-label">Hottest region</p><p class="summary-value">' + (hottest?.name ?? '—') + '</p><p>Score ' + formatNum(hottest?.composite_score, 1) + '</p></article>',
+        '<article class="summary-card"><p class="summary-label">Biggest 24h mover</p><p class="summary-value">' + (mover24h?.name ?? '—') + '</p><p>Δ24h ' + formatNum(mover24h?.delta_24h, 1) + '</p></article>',
+        '<article class="summary-card"><p class="summary-label">Biggest 7d mover</p><p class="summary-value">' + (mover7d?.name ?? '—') + '</p><p>Δ7d ' + formatNum(mover7d?.delta_7d, 1) + '</p></article>',
+        '<article class="summary-card"><p class="summary-label">Stale + high-risk</p><p class="summary-value">' + String(cards.stale_high_risk_count ?? 0) + '</p><p>status=high and not fresh</p></article>',
+        '<article class="summary-card"><p class="summary-label">High score, low confidence</p><p class="summary-value">' + String(cards.high_score_low_confidence_count ?? 0) + '</p><p>triage quality concern</p></article>',
+      ].join('');
+
+      const mover24hRows = Array.isArray(summary.top_movers?.by_24h) ? summary.top_movers.by_24h : [];
+      const mover7dRows = Array.isArray(summary.top_movers?.by_7d) ? summary.top_movers.by_7d : [];
+      const slugs = [...mover24hRows, ...mover7dRows].map((row) => row.slug).filter(Boolean);
+      topMoverSlugs = new Set(slugs);
+    }
+
     function renderFeed(feed) {
       const container = document.getElementById('feed-cards');
       if (!Array.isArray(feed) || feed.length === 0) {
@@ -72,8 +159,9 @@ export function getAnalystConsoleClientScript(): string {
       const cards = feed.slice(0, 30).map((row) => {
         return '<article class="feed-card">' +
           '<h3>' + row.name + '</h3>' +
-          '<p><strong>Score:</strong> ' + formatNum(row.composite_score, 1) + ' <span class="pill">' + row.status_band + '</span></p>' +
-          '<p><strong>Delta:</strong> 24h ' + formatNum(row.delta_24h, 1) + ' · 7d ' + formatNum(row.delta_7d, 1) + '</p>' +
+          '<p><strong>Composite risk:</strong> ' + formatNum(row.composite_score, 1) + ' <span class="pill">' + row.status_band + '</span></p>' +
+          '<p><strong>Momentum:</strong> 24h ' + formatNum(row.delta_24h, 1) + ' · 7d ' + formatNum(row.delta_7d, 1) + '</p>' +
+          '<p><strong>Triage:</strong> ' + (row.confidence_band ?? '-') + ' confidence · ' + (row.freshness_state ?? '-') + ' freshness · ' + (row.evidence_state ?? '-') + ' evidence</p>' +
           '<p><strong>Snapshot:</strong> ' + formatTimestamp(row.snapshot_time) + '</p>' +
           '<p><button class="region-link" data-region="' + row.slug + '">Inspect region</button></p>' +
         '</article>';
@@ -100,7 +188,7 @@ export function getAnalystConsoleClientScript(): string {
       table.innerHTML = header + body;
     }
 
-    function renderDetail(detail, history) {
+    function renderDetail(detail) {
       const container = document.getElementById('region-detail');
       if (!detail || !detail.latest_score) {
         container.innerHTML = '<p>Select a region to inspect score composition and history.</p>';
@@ -108,6 +196,7 @@ export function getAnalystConsoleClientScript(): string {
       }
 
       const latest = detail.latest_score;
+      const history = Array.isArray(detail.history) ? detail.history : [];
       const subscores = [
         ['Conflict pressure', latest.conflict_score],
         ['Chokepoint stress', latest.chokepoint_score],
@@ -181,35 +270,66 @@ export function getAnalystConsoleClientScript(): string {
       return response.json();
     }
 
+    function latestSnapshotFor(slug) {
+      const row = regions.find((candidate) => candidate.slug === slug);
+      return row?.snapshot_time ?? null;
+    }
+
     async function loadDashboard() {
-      const [regionsPayload, feedPayload] = await Promise.all([
+      const [regionsPayload, feedPayload, summaryPayload] = await Promise.all([
         fetchJson(endpointMap.regions, []),
         fetchJson(endpointMap.feed, []),
+        fetchJson(endpointMap.analystSummary, null),
       ]);
+      const previousActiveSnapshot = activeRegionSlug ? lastDetailSnapshotByRegion.get(activeRegionSlug) : null;
+
       regions = Array.isArray(regionsPayload) ? regionsPayload : [];
+      populateFilterOptions(regions);
+      renderSummaryCards(summaryPayload);
       renderRegionsTable(regions);
       renderFeed(feedPayload);
 
       if (!activeRegionSlug && regions.length > 0) {
         activeRegionSlug = regions[0].slug;
       }
+
       if (activeRegionSlug) {
-        await loadRegion(activeRegionSlug);
+        const newestSnapshot = latestSnapshotFor(activeRegionSlug);
+        const activeStillExists = regions.some((row) => row.slug === activeRegionSlug);
+        if (!activeStillExists && regions.length > 0) {
+          await loadRegion(regions[0].slug, true);
+          return;
+        }
+
+        const detailChanged = newestSnapshot !== previousActiveSnapshot;
+        if (detailChanged) {
+          await loadRegion(activeRegionSlug, false);
+        }
       }
     }
 
-    async function loadRegion(slug) {
+    async function loadRegion(slug, forceRefresh) {
       activeRegionSlug = slug;
       renderRegionsTable(regions);
-      const [detail, history] = await Promise.all([
-        fetchJson(endpointMap.regionDetail(slug), null),
-        fetchJson(endpointMap.regionHistory(slug), []),
-      ]);
-      renderDetail(detail, history);
+      const newestSnapshot = latestSnapshotFor(slug);
+      if (!forceRefresh && lastDetailSnapshotByRegion.get(slug) === newestSnapshot) {
+        return;
+      }
+
+      const detail = await fetchJson(endpointMap.regionDetail(slug), null);
+      renderDetail(detail);
+      lastDetailSnapshotByRegion.set(slug, newestSnapshot ?? detail?.latest_score?.snapshot_time ?? null);
     }
 
     document.getElementById('region-sort').addEventListener('change', () => renderRegionsTable(regions));
     document.getElementById('region-sort-direction').addEventListener('change', () => renderRegionsTable(regions));
+    document.getElementById('region-search').addEventListener('input', () => renderRegionsTable(regions));
+    document.getElementById('top-movers-only').addEventListener('change', () => renderRegionsTable(regions));
+    document.getElementById('filter-status-band').addEventListener('change', () => renderRegionsTable(regions));
+    document.getElementById('filter-confidence-band').addEventListener('change', () => renderRegionsTable(regions));
+    document.getElementById('filter-freshness-state').addEventListener('change', () => renderRegionsTable(regions));
+    document.getElementById('filter-evidence-state').addEventListener('change', () => renderRegionsTable(regions));
+
     document.body.addEventListener('click', (event) => {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
@@ -217,10 +337,12 @@ export function getAnalystConsoleClientScript(): string {
       const slug = target.getAttribute('data-region');
       if (!slug) return;
       event.preventDefault();
-      void loadRegion(slug);
+      void loadRegion(slug, true);
     });
 
     void loadDashboard();
-    setInterval(loadDashboard, 30000);
+    setInterval(() => {
+      void loadDashboard();
+    }, 30000);
   `;
 }
