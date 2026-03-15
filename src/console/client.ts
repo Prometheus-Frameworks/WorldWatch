@@ -120,13 +120,38 @@ export function getOpsConsoleClientScript(): string {
 
     }
 
-    document.getElementById('trigger').addEventListener('click', async () => {
-      const statusEl = document.getElementById('trigger-status');
-      statusEl.textContent = 'running...';
-      const response = await fetch('/api/ops/cycle/run', { method: 'POST' });
-      statusEl.textContent = response.ok ? 'done' : 'error';
-      await loadOps();
-    });
+    const triggerEl = document.getElementById('trigger');
+
+    if (triggerEl) {
+      triggerEl.addEventListener('click', async () => {
+        const statusEl = document.getElementById('trigger-status');
+        const disabledByPosture = triggerEl.getAttribute('data-manual-trigger-disabled') === 'true';
+        if (disabledByPosture || triggerEl.disabled) {
+          statusEl.textContent = 'disabled by deployment posture';
+          return;
+        }
+
+        statusEl.textContent = 'running...';
+        const response = await fetch('/api/ops/cycle/run', { method: 'POST' });
+
+        if (response.ok) {
+          statusEl.textContent = 'done';
+        } else {
+          let message = 'error';
+          try {
+            const payload = await response.json();
+            if (payload && typeof payload.message === 'string') {
+              message = payload.message;
+            }
+          } catch {
+            message = 'error';
+          }
+          statusEl.textContent = message;
+        }
+
+        await loadOps();
+      });
+    }
 
     void loadOps();
     setInterval(loadOps, 30000);

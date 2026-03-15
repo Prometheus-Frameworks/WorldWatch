@@ -237,6 +237,66 @@ test('server serves analyst dashboard at root and ops at /ops', async () => {
 
 
 
+
+test('ops console disables manual trigger in public_read_only posture', async () => {
+  const db: QueryableDb = { query: async <T>() => ({ rows: [] as T[] }) };
+  const server = createWorldWatchApiServer(db, undefined, {
+    posture: 'public_read_only',
+    bannerText: 'Public read-only posture',
+    subtitleText: 'Read-only visibility for civilian public-source monitoring outputs.',
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  if (!address) throw new Error('Server address unavailable');
+
+  const response = await fetch(`http://127.0.0.1:${address.port}/ops`);
+  assert.equal(response.status, 200);
+  const html = await (response as unknown as { text: () => Promise<string> }).text();
+
+  assert.ok(html.includes('id="trigger"'));
+  assert.ok(html.includes('data-manual-trigger-disabled="true"'));
+  assert.ok(html.includes('disabled aria-disabled="true"'));
+  assert.ok(html.includes('Manual cycle trigger is disabled in public_read_only posture.'));
+
+  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+});
+
+test('manual cycle trigger route is blocked in public_read_only posture', async () => {
+  const db: QueryableDb = { query: async <T>() => ({ rows: [] as T[] }) };
+  const server = createWorldWatchApiServer(db, {
+    runCycle: async () => ({
+      status: 'success',
+      startedAt: '2026-01-01T00:00:00Z',
+      finishedAt: '2026-01-01T00:00:10Z',
+      durationMs: 10000,
+      jobs: [],
+      totalRecordsProcessed: 22,
+      sourceRecordsProcessed: { acled: 10, gdelt: 12 },
+      snapshotRowsWritten: 9,
+      alertsGenerated: 3,
+      regionsScored: 9,
+    }),
+  }, {
+    posture: 'public_read_only',
+    bannerText: 'Public read-only posture',
+    subtitleText: 'Read-only visibility for civilian public-source monitoring outputs.',
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  if (!address) throw new Error('Server address unavailable');
+
+  const response = await fetch(`http://127.0.0.1:${address.port}/api/ops/cycle/run`, { method: 'POST' });
+  assert.equal(response.status, 403);
+
+  const payload = (await response.json()) as Record<string, unknown>;
+  assert.equal(payload.error, 'posture_read_only');
+  assert.equal(payload.message, 'Manual cycle trigger is disabled in public_read_only posture.');
+
+  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+});
+
 test('server serves /about policy route with canonical usage statements', async () => {
   const db: QueryableDb = { query: async <T>() => ({ rows: [] as T[] }) };
   const server = createWorldWatchApiServer(db);
@@ -256,7 +316,7 @@ test('server serves /about policy route with canonical usage statements', async 
   await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
 });
 
-test('manual cycle trigger returns cycle payload on success', async () => {
+test('manual cycle trigger returns cycle payload on success in internal posture', async () => {
   const db: QueryableDb = { query: async <T>() => ({ rows: [] as T[] }) };
   const server = createWorldWatchApiServer(db, {
     runCycle: async () => ({
@@ -271,6 +331,10 @@ test('manual cycle trigger returns cycle payload on success', async () => {
       alertsGenerated: 3,
       regionsScored: 9,
     }),
+  }, {
+    posture: 'internal',
+    bannerText: 'Internal-only workspace',
+    subtitleText: 'For internal analyst and operations workflows only.',
   });
 
   await new Promise<void>((resolve) => server.listen(0, resolve));

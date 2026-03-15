@@ -7,6 +7,7 @@ test('deployment posture parser defaults unknown values to internal', () => {
   assert.equal(parseDeploymentPosture(undefined), 'internal');
   assert.equal(parseDeploymentPosture('invalid'), 'internal');
   assert.equal(parseDeploymentPosture('invite_only'), 'invite_only');
+  assert.equal(parseDeploymentPosture('public_read_only'), 'public_read_only');
 });
 
 test('deployment posture config supports explicit copy overrides', () => {

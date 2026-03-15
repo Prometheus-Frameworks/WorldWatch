@@ -8,6 +8,10 @@ export interface DeploymentPostureConfig {
   subtitleText: string;
 }
 
+export function isReadOnlyPosture(config: DeploymentPostureConfig): boolean {
+  return config.posture === 'public_read_only';
+}
+
 const DEFAULT_COPY: Record<DeploymentPosture, { banner: string; subtitle: string }> = {
   internal: {
     banner: 'Internal-only workspace',
