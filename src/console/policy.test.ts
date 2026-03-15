@@ -11,4 +11,6 @@ test('policy panel and footer render canonical civilian-use copy', () => {
   assert.ok(panel.includes(CIVILIAN_USE_STATEMENT));
   assert.ok(panel.includes(ACCEPTABLE_USE_STATEMENT));
   assert.ok(footer.includes(CIVILIAN_USE_STATEMENT));
+  assert.ok(footer.includes(ACCEPTABLE_USE_STATEMENT));
+  assert.ok(footer.includes('/about'));
 });

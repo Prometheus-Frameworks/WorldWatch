@@ -20,13 +20,19 @@ import {
 } from './queries.ts';
 import { renderAnalystConsole } from '../console/renderAnalystConsole.ts';
 import { renderOpsConsole } from '../console/renderOpsConsole.ts';
+import { renderPolicyPage } from '../console/renderPolicyPage.ts';
+import { getDeploymentPostureConfig, type DeploymentPostureConfig } from '../console/posture.ts';
 
 export interface ApiCycleControl {
   runCycle: () => Promise<RunWorldWatchCycleResult>;
   isCycleRunning?: () => boolean;
 }
 
-export function createWorldWatchApiServer(db: QueryableDb, cycleControl?: ApiCycleControl) {
+export function createWorldWatchApiServer(
+  db: QueryableDb,
+  cycleControl?: ApiCycleControl,
+  posture: DeploymentPostureConfig = getDeploymentPostureConfig(),
+) {
   let manualCycleInFlight: Promise<RunWorldWatchCycleResult> | null = null;
 
   const isCycleRunning = (): boolean => {
@@ -53,7 +59,7 @@ export function createWorldWatchApiServer(db: QueryableDb, cycleControl?: ApiCyc
 
   return createServer(async (req, res) => {
     try {
-      await routeRequest(db, req, res, { runManualCycle, isCycleRunning });
+      await routeRequest(db, req, res, { runManualCycle, isCycleRunning }, posture);
     } catch (error) {
       sendJson(res, 500, { error: 'internal_error', message: error instanceof Error ? error.message : String(error) });
     }
@@ -65,18 +71,24 @@ async function routeRequest(
   req: IncomingMessage,
   res: ServerResponse,
   cycleHandlers: { runManualCycle: () => Promise<RunWorldWatchCycleResult>; isCycleRunning: () => boolean },
+  posture: DeploymentPostureConfig,
 ): Promise<void> {
   const method = req.method ?? 'GET';
   const requestUrl = new URL(req.url ?? '/', 'http://localhost');
   const path = requestUrl.pathname;
 
   if (method === 'GET' && (path === '/' || path === '/analyst')) {
-    sendHtml(res, 200, renderAnalystConsole());
+    sendHtml(res, 200, renderAnalystConsole(posture));
     return;
   }
 
   if (method === 'GET' && path === '/ops') {
-    sendHtml(res, 200, renderOpsConsole());
+    sendHtml(res, 200, renderOpsConsole(posture));
+    return;
+  }
+
+  if (method === 'GET' && path === '/about') {
+    sendHtml(res, 200, renderPolicyPage(posture));
     return;
   }
 

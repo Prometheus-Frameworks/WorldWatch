@@ -1,9 +1,11 @@
 import type { RunWorldWatchCycleInput, SourceEndpointConfig } from '../jobs/runWorldWatchCycle.ts';
+import { getDeploymentPostureConfig, type DeploymentPostureConfig } from '../console/posture.ts';
 
 export interface RuntimeConfig {
   port: number;
   databaseUrl: string;
   cycleIntervalMinutes: number;
+  deployment: DeploymentPostureConfig;
   sources: {
     acled: SourceEndpointConfig;
     gdelt: SourceEndpointConfig;
@@ -19,6 +21,7 @@ export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runtime
     port: readInt(env.PORT, 8787),
     databaseUrl: readRequired(env.DATABASE_URL, 'DATABASE_URL'),
     cycleIntervalMinutes: readInt(env.CYCLE_INTERVAL_MINUTES, 15),
+    deployment: getDeploymentPostureConfig(env),
     sources: {
       acled: buildSourceConfig(env, 'ACLED_URL'),
       gdelt: buildSourceConfig(env, 'GDELT_URL'),
