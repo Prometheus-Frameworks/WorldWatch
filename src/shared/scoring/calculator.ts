@@ -43,16 +43,47 @@ export function deriveStatusBand(score: number): StatusBand {
   return 'low';
 }
 
+function getSignalCoverageWeight(signal: SignalHealth): number {
+  const observedSignals = Math.max(1, signal.observedSignals ?? 1);
+  return observedSignals;
+}
+
 export function deriveFreshnessState(signals: SignalHealth[]): FreshnessState {
   if (signals.length === 0) return 'stale';
 
   const reliabilityScoped = signals.filter((signal) => signal.isReliable);
   const relevantSignals = reliabilityScoped.length > 0 ? reliabilityScoped : signals;
-  const ages = relevantSignals.map((signal) => signal.ageMinutes).sort((a, b) => a - b);
-  const anchorAge = ages[Math.min(1, ages.length - 1)];
+  const domainSet = new Set(relevantSignals.map((signal) => signal.domain).filter(Boolean));
+  const hasDomainCoverage = domainSet.size >= 2;
 
-  if (anchorAge <= FRESHNESS_THRESHOLDS_MINUTES.fresh) return 'fresh';
-  if (anchorAge <= FRESHNESS_THRESHOLDS_MINUTES.aging) return 'aging';
+  if (hasDomainCoverage) {
+    const newestByDomain = new Map<string, SignalHealth>();
+    for (const signal of relevantSignals) {
+      const domain = signal.domain;
+      if (!domain) continue;
+      const current = newestByDomain.get(domain);
+      if (!current || signal.ageMinutes < current.ageMinutes) {
+        newestByDomain.set(domain, signal);
+      }
+    }
+
+    const domainAges = [...newestByDomain.values()].map((signal) => signal.ageMinutes).sort((a, b) => a - b);
+    const domainAnchorAge = domainAges[Math.min(1, domainAges.length - 1)];
+    if (domainAnchorAge <= FRESHNESS_THRESHOLDS_MINUTES.fresh) return 'fresh';
+    if (domainAnchorAge <= FRESHNESS_THRESHOLDS_MINUTES.aging) return 'aging';
+    return 'stale';
+  }
+
+  const totalCoverageWeight = relevantSignals.reduce((sum, signal) => sum + getSignalCoverageWeight(signal), 0);
+  const freshWeight = relevantSignals
+    .filter((signal) => signal.ageMinutes <= FRESHNESS_THRESHOLDS_MINUTES.fresh)
+    .reduce((sum, signal) => sum + getSignalCoverageWeight(signal), 0);
+  const agingWeight = relevantSignals
+    .filter((signal) => signal.ageMinutes <= FRESHNESS_THRESHOLDS_MINUTES.aging)
+    .reduce((sum, signal) => sum + getSignalCoverageWeight(signal), 0);
+
+  if (freshWeight / totalCoverageWeight >= 0.6) return 'fresh';
+  if (agingWeight / totalCoverageWeight >= 0.6) return 'aging';
   return 'stale';
 }
 

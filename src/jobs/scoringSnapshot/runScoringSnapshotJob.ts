@@ -121,7 +121,7 @@ export async function runScoringSnapshotJob(
           score.confidenceBand,
           score.evidenceState,
           score.freshnessState,
-          JSON.stringify(buildFactors(latestSignals, config)),
+          JSON.stringify(buildFactors(latestSignals, snapshotTime, config)),
           JSON.stringify([]),
         ],
       );
@@ -267,37 +267,62 @@ function normalizeSignal(signalType: string, value: number, config: SnapshotJobC
   return normalization.invert ? round2(100 - bounded) : round2(bounded);
 }
 
-function buildSignalHealth(rows: SignalRow[], snapshotTime: Date, config: SnapshotJobConfig): SignalHealth[] {
-  const newestBySource = new Map<SignalHealth['source'], SignalRow>();
-  for (const row of rows) {
-    if (!newestBySource.has(row.source_name)) {
-      newestBySource.set(row.source_name, row);
-      continue;
-    }
-
-    if (new Date(row.event_time) > new Date(newestBySource.get(row.source_name)!.event_time)) {
-      newestBySource.set(row.source_name, row);
-    }
-  }
-
-  return [...newestBySource.entries()].map(([source, row]) => ({
-    source,
-    isMovingUp: normalizeSignal(row.signal_type, row.value, config) >= 50,
-    isReliable: row.reliability_weight >= 0.6,
-    ageMinutes: Math.max(
-      0,
-      Math.round((snapshotTime.getTime() - new Date(row.event_time).getTime()) / (60 * 1000)),
-    ),
-  }));
+function deriveSignalDomain(signalType: string): keyof SubScores {
+  if (signalType.startsWith('conflict.') || signalType.startsWith('thermal.')) return 'conflictPressure';
+  if (signalType.startsWith('chokepoint.')) return 'chokepointStress';
+  if (signalType.startsWith('oil.')) return 'oilShockRisk';
+  if (signalType.startsWith('displacement.')) return 'displacementAcceleration';
+  return 'narrativeHeat';
 }
 
-function buildFactors(rows: SignalRow[], config: SnapshotJobConfig): Array<Record<string, unknown>> {
-  return rows.slice(0, 10).map((row) => ({
+function buildSignalHealth(rows: SignalRow[], snapshotTime: Date, config: SnapshotJobConfig): SignalHealth[] {
+  const sourceRows = new Map<SignalHealth['source'], SignalRow[]>();
+  for (const row of rows) {
+    if (!sourceRows.has(row.source_name)) sourceRows.set(row.source_name, []);
+    sourceRows.get(row.source_name)?.push(row);
+  }
+
+  return [...sourceRows.entries()].map(([source, sourceSignals]) => {
+    const newest = sourceSignals.reduce((current, candidate) => {
+      if (!current) return candidate;
+      if (new Date(candidate.event_time) > new Date(current.event_time)) return candidate;
+      return current;
+    }, sourceSignals[0]);
+
+    return {
+      source,
+      domain: deriveSignalDomain(newest.signal_type),
+      observedSignals: sourceSignals.length,
+      isMovingUp: normalizeSignal(newest.signal_type, newest.value, config) >= 50,
+      isReliable: newest.reliability_weight >= 0.6,
+      ageMinutes: Math.max(
+        0,
+        Math.round((snapshotTime.getTime() - new Date(newest.event_time).getTime()) / (60 * 1000)),
+      ),
+    };
+  });
+}
+
+function buildFactors(rows: SignalRow[], snapshotTime: Date, config: SnapshotJobConfig): Array<Record<string, unknown>> {
+  const ordered = [...rows]
+    .map((row) => ({
+      ...row,
+      normalizedValue: normalizeSignal(row.signal_type, row.value, config),
+      domain: deriveSignalDomain(row.signal_type),
+    }))
+    .sort((a, b) => b.normalizedValue - a.normalizedValue);
+
+  return ordered.slice(0, 10).map((row) => ({
     signalType: row.signal_type,
+    domain: row.domain,
     value: row.value,
-    normalizedValue: normalizeSignal(row.signal_type, row.value, config),
+    normalizedValue: row.normalizedValue,
     source: row.source_name,
+    sourceReliability: row.reliability_weight,
+    recencyMinutes: Math.max(0, Math.round((snapshotTime.getTime() - new Date(row.event_time).getTime()) / (60 * 1000))),
+    movement: row.normalizedValue >= 50 ? 'up' : 'down',
     eventTime: row.event_time,
+    explainabilityNote: `${row.signal_type} contributes to ${row.domain} with normalized score ${row.normalizedValue}.`,
   }));
 }
 
