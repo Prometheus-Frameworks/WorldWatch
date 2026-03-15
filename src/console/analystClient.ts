@@ -25,7 +25,11 @@ export function getAnalystConsoleClientScript(): string {
     let topMoverSlugs = new Set();
     let lastTableSignature = '';
     let lastMapSignature = '';
+    let lastSummarySignature = '';
+    let lastFeedSignature = '';
+    let lastFilterOptionsSignature = '';
     let hoveredRegionSlug = null;
+    let hasRenderedMapLegend = false;
 
     function formatTimestamp(value) {
       if (!value) return '-';
@@ -52,33 +56,6 @@ export function getAnalystConsoleClientScript(): string {
       return Math.max(0, Math.min(100, Math.round(numeric)));
     }
 
-    function getTriageNotes(detail) {
-      const latest = detail?.latest_score;
-      if (!latest) return [];
-      const notes = [];
-      const delta24h = Number(detail?.latest_delta?.delta_24h ?? latest.delta_24h ?? 0);
-      const delta7d = Number(detail?.latest_delta?.delta_7d ?? latest.delta_7d ?? 0);
-
-      if (Number.isFinite(delta24h) && delta24h >= 7) {
-        notes.push({ title: 'Top mover (24h)', copy: 'Rapid daily movement detected. Prioritize validation of newest factor inputs.' });
-      }
-      if (Number.isFinite(delta7d) && delta7d >= 12) {
-        notes.push({ title: 'Sustained weekly acceleration', copy: '7-day trend remains elevated. Check whether pressure is broad-based or source-specific.' });
-      }
-      if ((latest.status_band === 'high' || latest.status_band === 'critical') && latest.freshness_state !== 'fresh') {
-        notes.push({ title: 'Stale high-risk pattern', copy: 'Risk is high but freshness is degraded. Consider source rerun or analyst verification.' });
-      }
-      if (Number(latest.composite_score) >= 70 && latest.confidence_band === 'low') {
-        notes.push({ title: 'High risk with low confidence', copy: 'Elevated score and lower confidence suggest careful human review before escalation.' });
-      }
-
-      if (notes.length === 0) {
-        notes.push({ title: 'No immediate triage flags', copy: 'Current region mix is comparatively stable. Continue normal monitoring cadence.' });
-      }
-
-      return notes.slice(0, 3);
-    }
-
     function getSelectValue(id) {
       const node = document.getElementById(id);
       return node instanceof HTMLSelectElement ? node.value : 'all';
@@ -95,6 +72,12 @@ export function getAnalystConsoleClientScript(): string {
     }
 
     function populateFilterOptions(rows) {
+      const signature = (Array.isArray(rows) ? rows : [])
+        .map((row) => [row.status_band, row.confidence_band, row.freshness_state, row.evidence_state].join('|'))
+        .sort()
+        .join(';');
+      if (signature === lastFilterOptionsSignature) return;
+
       const fields = [
         ['filter-status-band', 'status_band'],
         ['filter-confidence-band', 'confidence_band'],
@@ -114,6 +97,8 @@ export function getAnalystConsoleClientScript(): string {
           select.value = 'all';
         }
       }
+
+      lastFilterOptionsSignature = signature;
     }
 
     function filterRegions(rows) {
@@ -197,8 +182,11 @@ export function getAnalystConsoleClientScript(): string {
     function renderSummaryCards(summary) {
       const container = document.getElementById('summary-cards');
       if (!(container instanceof HTMLElement)) return;
+      const signature = JSON.stringify(summary ?? null);
+      if (signature === lastSummarySignature) return;
       if (!summary || !summary.cards) {
         container.innerHTML = '<div class="summary-card"><p class="summary-label">Summary</p><p class="summary-value">No summary data</p></div>';
+        lastSummarySignature = signature;
         return;
       }
 
@@ -219,12 +207,20 @@ export function getAnalystConsoleClientScript(): string {
       const mover7dRows = Array.isArray(summary.top_movers?.by_7d) ? summary.top_movers.by_7d : [];
       const slugs = [...mover24hRows, ...mover7dRows].map((row) => row.slug).filter(Boolean);
       topMoverSlugs = new Set(slugs);
+      lastSummarySignature = signature;
     }
 
     function renderFeed(feed) {
       const container = document.getElementById('feed-cards');
+      const normalizedFeed = Array.isArray(feed) ? feed : [];
+      const signature = normalizedFeed
+        .slice(0, 30)
+        .map((row) => [row.slug, row.snapshot_time, row.composite_score, row.delta_24h, row.delta_7d, row.status_band, row.confidence_band, row.freshness_state, row.evidence_state].join('|'))
+        .join(';');
+      if (signature === lastFeedSignature) return;
       if (!Array.isArray(feed) || feed.length === 0) {
         container.innerHTML = '<p>No feed entries yet.</p>';
+        lastFeedSignature = signature;
         return;
       }
 
@@ -240,6 +236,7 @@ export function getAnalystConsoleClientScript(): string {
       }).join('');
 
       container.innerHTML = cards;
+      lastFeedSignature = signature;
     }
 
     function renderHistoryTable(id, rows, columns) {
@@ -337,7 +334,7 @@ export function getAnalystConsoleClientScript(): string {
         { key: 'rank_movement', header: 'Rank Δ', render: (v) => formatNum(Number(v), 0) },
       ]);
 
-      const triageNotes = getTriageNotes(detail);
+      const triageNotes = Array.isArray(detail.triage_notes) ? detail.triage_notes : [];
       const triageContainer = document.getElementById('triage-notes');
       if (triageContainer instanceof HTMLElement) {
         triageContainer.innerHTML = triageNotes
@@ -421,10 +418,12 @@ export function getAnalystConsoleClientScript(): string {
     function renderMapLegend() {
       const legend = document.getElementById('map-legend');
       if (!(legend instanceof HTMLElement)) return;
+      if (hasRenderedMapLegend) return;
       const levels = ['critical', 'high', 'elevated', 'low'];
       legend.innerHTML = levels
         .map((level) => '<span><span class="map-dot" style="background:' + (STATUS_COLORS[level] ?? STATUS_COLORS.unknown) + '"></span>' + level + '</span>')
         .join('');
+      hasRenderedMapLegend = true;
     }
 
     function renderMap() {

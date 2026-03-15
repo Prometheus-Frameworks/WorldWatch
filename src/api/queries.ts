@@ -1,4 +1,5 @@
 import type { QueryableDb } from '../ingestion/types.ts';
+import { buildTriageSpotlight, deriveTriageNotes, toTriageInput, type TriageNote } from './analystPayload.ts';
 
 export interface RegionSummary {
   slug: string;
@@ -107,6 +108,20 @@ export interface AnalystSummary {
   top_movers: {
     by_24h: RegionSummary[];
     by_7d: RegionSummary[];
+  };
+}
+
+export interface AnalystDashboardPayload {
+  regions: RegionSummary[];
+  regions_geo: RegionGeoRow[];
+  feed: Record<string, unknown>[];
+  summary: AnalystSummary;
+  triage_summary: {
+    spotlight: Array<{
+      slug: string;
+      name: string;
+      notes: TriageNote[];
+    }>;
   };
 }
 export async function getRegionSummaries(db: QueryableDb): Promise<RegionSummary[]> {
@@ -267,6 +282,14 @@ export async function getRegionDetail(db: QueryableDb, slug: string, historyLimi
       delta_24h: head.delta_24h,
       delta_7d: head.delta_7d,
     },
+    triage_notes: deriveTriageNotes(toTriageInput({
+      composite_score: Number(head.composite_score),
+      status_band: String(head.status_band),
+      confidence_band: String(head.confidence_band),
+      freshness_state: String(head.freshness_state),
+      delta_24h: Number(head.delta_24h),
+      delta_7d: Number(head.delta_7d),
+    })),
     recent_signals: recentSignals.rows,
     history: history.rows,
   };
@@ -348,6 +371,25 @@ export async function getAnalystSummary(db: QueryableDb): Promise<AnalystSummary
     top_movers: {
       by_24h: by24h.slice(0, 5),
       by_7d: by7d.slice(0, 5),
+    },
+  };
+}
+
+export async function getAnalystDashboard(db: QueryableDb): Promise<AnalystDashboardPayload> {
+  const [regions, regionsGeo, feed, summary] = await Promise.all([
+    getRegionSummaries(db),
+    getRegionGeo(db),
+    getFeed(db),
+    getAnalystSummary(db),
+  ]);
+
+  return {
+    regions,
+    regions_geo: regionsGeo,
+    feed,
+    summary,
+    triage_summary: {
+      spotlight: buildTriageSpotlight(regions),
     },
   };
 }
