@@ -138,6 +138,7 @@ test('ops console data endpoints are fetch-compatible for the console', async ()
   const endpoints = [
     '/api/ops/summary',
     '/api/analyst/summary',
+    '/api/analyst/dashboard',
     '/api/ops/cycle/latest',
     '/api/ops/cycles',
     '/api/ops/sources/runs',
@@ -214,11 +215,16 @@ test('server serves analyst dashboard at root and ops at /ops', async () => {
   assert.ok(analystHtml.includes('id="analyst-map"'));
   assert.ok(analystHtml.includes("regionsGeo: '/api/regions/geo'"));
   assert.ok(analystHtml.includes("target.closest('[data-region]')"));
+  assert.ok(analystHtml.includes('About / Usage / Terms'));
+  assert.ok(analystHtml.includes('civilian, public-source monitoring and analysis tool'));
+  assert.ok(analystHtml.includes('You may not use WorldWatch to support military targeting'));
 
   const opsResponse = await fetch(`http://127.0.0.1:${address.port}/ops`);
   assert.equal(opsResponse.status, 200);
   const opsHtml = await (opsResponse as unknown as { text: () => Promise<string> }).text();
   assert.ok(opsHtml.includes('WorldWatch Internal Ops Console'));
+  assert.ok(opsHtml.includes('About / Usage / Terms'));
+  assert.ok(opsHtml.includes('public-source monitoring and analysis only'));
 
   await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
 });
@@ -384,6 +390,36 @@ test('server exposes analyst summary endpoint', async () => {
   assert.equal(response.status, 200);
   const payload = (await response.json()) as Record<string, unknown>;
   assert.equal(typeof payload.cards, 'object');
+
+  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+});
+
+
+test('analyst dashboard endpoint returns consolidated payload for client bootstrap', async () => {
+  const db: QueryableDb = {
+    async query<T>(sql: string) {
+      if (sql.includes('ST_AsGeoJSON')) return { rows: [{ slug: 'levant', name: 'Levant', type: 'region', composite_score: 70, status_band: 'high', confidence_band: 'medium', freshness_state: 'fresh', evidence_state: 'mixed', snapshot_time: '2026-01-01T00:00:00Z', delta_24h: 2, delta_7d: 5, geometry: { type: 'Polygon', coordinates: [] } }] as T[] };
+      if (sql.includes('ORDER BY rs.composite_score DESC, r.slug ASC')) return { rows: [{ slug: 'levant', name: 'Levant', type: 'region', composite_score: 70, status_band: 'high', confidence_band: 'medium', freshness_state: 'fresh', evidence_state: 'mixed', snapshot_time: '2026-01-01T00:00:00Z', delta_24h: 2, delta_7d: 5 }] as T[] };
+      if (sql.includes('FROM alerts_feed')) return { rows: [{ slug: 'levant', name: 'Levant', composite_score: 70, status_band: 'high', confidence_band: 'medium', freshness_state: 'fresh', evidence_state: 'mixed', snapshot_time: '2026-01-01T00:00:00Z', delta_24h: 2, delta_7d: 5 }] as T[] };
+      if (sql.includes('stale_high_risk_count')) return { rows: [{ stale_high_risk_count: 1, high_score_low_confidence_count: 0 }] as T[] };
+      if (sql.includes('biggest_24h_mover')) return { rows: [] as T[] };
+      return { rows: [] as T[] };
+    },
+  };
+
+  const server = createWorldWatchApiServer(db);
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  if (!address) throw new Error('Server address unavailable');
+
+  const response = await fetch(`http://127.0.0.1:${address.port}/api/analyst/dashboard`);
+  assert.equal(response.status, 200);
+  const payload = (await response.json()) as Record<string, unknown>;
+
+  assert.ok(Array.isArray(payload.regions));
+  assert.ok(Array.isArray(payload.regions_geo));
+  assert.ok(Array.isArray(payload.feed));
+  assert.equal(typeof payload.summary, 'object');
 
   await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
 });

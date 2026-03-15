@@ -5,6 +5,7 @@ export function getAnalystConsoleClientScript(): string {
       regionsGeo: '/api/regions/geo',
       feed: '/api/feed',
       analystSummary: '/api/analyst/summary',
+      analystDashboard: '/api/analyst/dashboard',
       regionDetail: (slug) => '/api/regions/' + encodeURIComponent(slug),
     };
 
@@ -31,6 +32,15 @@ export function getAnalystConsoleClientScript(): string {
 
     function formatNum(value, digits = 2) {
       return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '-';
+    }
+
+    function deriveNextActiveRegionSlug(visibleSlugs, currentActiveSlug) {
+      if (currentActiveSlug && visibleSlugs.includes(currentActiveSlug)) return currentActiveSlug;
+      return visibleSlugs[0] ?? null;
+    }
+
+    function getMapTooltipText(row) {
+      return row.name + ' · ' + row.status_band + ' · score ' + formatNum(Number(row.composite_score), 1) + ' · Δ24h ' + formatNum(Number(row.delta_24h), 1) + ' · Δ7d ' + formatNum(Number(row.delta_7d), 1);
     }
 
     function getSelectValue(id) {
@@ -371,20 +381,45 @@ export function getAnalystConsoleClientScript(): string {
       const bounds = getBoundsFromGeometry(visibleGeo);
       const paths = visibleGeo.map((row) => {
         const isActive = row.slug === activeRegionSlug;
-        const stroke = isActive ? '#e7f2ff' : '#1a2435';
-        const strokeWidth = isActive ? 2 : 1;
+        const hasActive = Boolean(activeRegionSlug);
         const fill = STATUS_COLORS[row.status_band] ?? STATUS_COLORS.unknown;
         const pathD = geometryToPathD(row.geometry, bounds);
-        const title = row.name + ' · score ' + formatNum(Number(row.composite_score), 1) + ' · Δ24h ' + formatNum(Number(row.delta_24h), 1);
-        return '<path class="map-region" data-region="' + row.slug + '" d="' + pathD + '" fill="' + fill + '" fill-opacity="0.75" stroke="' + stroke + '" stroke-width="' + strokeWidth + '" cursor="pointer"><title>' + title + '</title></path>';
+        const className = 'map-region' + (isActive ? ' active' : '') + (hasActive && !isActive ? ' dimmed' : '');
+        const title = getMapTooltipText(row);
+        return '<path class="' + className + '" data-region="' + row.slug + '" data-tooltip="' + title + '" d="' + pathD + '" fill="' + fill + '" stroke="#1a2435" stroke-width="1" cursor="pointer"><title>' + title + '</title></path>';
       }).join('');
 
       map.innerHTML = paths;
     }
 
+    function showMapTooltip(text, x, y) {
+      const tooltip = document.getElementById('map-tooltip');
+      if (!(tooltip instanceof HTMLElement)) return;
+      tooltip.textContent = text;
+      tooltip.hidden = false;
+      tooltip.style.left = (x + 12) + 'px';
+      tooltip.style.top = (y + 12) + 'px';
+    }
+
+    function hideMapTooltip() {
+      const tooltip = document.getElementById('map-tooltip');
+      if (!(tooltip instanceof HTMLElement)) return;
+      tooltip.hidden = true;
+    }
+
     function syncRegionViews() {
+      const visible = getFilteredSortedRegions();
+      activeRegionSlug = deriveNextActiveRegionSlug(visible.map((row) => row.slug), activeRegionSlug);
       renderRegionsTable(regions);
       renderMap();
+    }
+
+    async function syncRegionViewsAndMaybeLoadDetail(forceRefresh) {
+      const previous = activeRegionSlug;
+      syncRegionViews();
+      if (activeRegionSlug && (forceRefresh || activeRegionSlug !== previous)) {
+        await loadRegion(activeRegionSlug, true);
+      }
     }
 
     function applyLayout() {
@@ -417,12 +452,15 @@ export function getAnalystConsoleClientScript(): string {
     }
 
     async function loadDashboard() {
-      const [regionsPayload, geoPayload, feedPayload, summaryPayload] = await Promise.all([
-        fetchJson(endpointMap.regions, []),
-        fetchJson(endpointMap.regionsGeo, []),
-        fetchJson(endpointMap.feed, []),
-        fetchJson(endpointMap.analystSummary, null),
-      ]);
+      const dashboardPayload = await fetchJson(endpointMap.analystDashboard, null);
+      const [regionsPayload, geoPayload, feedPayload, summaryPayload] = dashboardPayload
+        ? [dashboardPayload.regions, dashboardPayload.regions_geo, dashboardPayload.feed, dashboardPayload.summary]
+        : await Promise.all([
+            fetchJson(endpointMap.regions, []),
+            fetchJson(endpointMap.regionsGeo, []),
+            fetchJson(endpointMap.feed, []),
+            fetchJson(endpointMap.analystSummary, null),
+          ]);
       const previousActiveSnapshot = activeRegionSlug ? lastDetailSnapshotByRegion.get(activeRegionSlug) : null;
 
       regions = Array.isArray(regionsPayload) ? regionsPayload : [];
@@ -466,14 +504,14 @@ export function getAnalystConsoleClientScript(): string {
       lastDetailSnapshotByRegion.set(slug, newestSnapshot ?? detail?.latest_score?.snapshot_time ?? null);
     }
 
-    document.getElementById('region-sort').addEventListener('change', () => syncRegionViews());
-    document.getElementById('region-sort-direction').addEventListener('change', () => syncRegionViews());
-    document.getElementById('region-search').addEventListener('input', () => syncRegionViews());
-    document.getElementById('top-movers-only').addEventListener('change', () => syncRegionViews());
-    document.getElementById('filter-status-band').addEventListener('change', () => syncRegionViews());
-    document.getElementById('filter-confidence-band').addEventListener('change', () => syncRegionViews());
-    document.getElementById('filter-freshness-state').addEventListener('change', () => syncRegionViews());
-    document.getElementById('filter-evidence-state').addEventListener('change', () => syncRegionViews());
+    document.getElementById('region-sort').addEventListener('change', () => { void syncRegionViewsAndMaybeLoadDetail(false); });
+    document.getElementById('region-sort-direction').addEventListener('change', () => { void syncRegionViewsAndMaybeLoadDetail(false); });
+    document.getElementById('region-search').addEventListener('input', () => { void syncRegionViewsAndMaybeLoadDetail(false); });
+    document.getElementById('top-movers-only').addEventListener('change', () => { void syncRegionViewsAndMaybeLoadDetail(false); });
+    document.getElementById('filter-status-band').addEventListener('change', () => { void syncRegionViewsAndMaybeLoadDetail(false); });
+    document.getElementById('filter-confidence-band').addEventListener('change', () => { void syncRegionViewsAndMaybeLoadDetail(false); });
+    document.getElementById('filter-freshness-state').addEventListener('change', () => { void syncRegionViewsAndMaybeLoadDetail(false); });
+    document.getElementById('filter-evidence-state').addEventListener('change', () => { void syncRegionViewsAndMaybeLoadDetail(false); });
     document.getElementById('analyst-layout').addEventListener('change', () => applyLayout());
 
     document.body.addEventListener('click', (event) => {
@@ -486,6 +524,24 @@ export function getAnalystConsoleClientScript(): string {
       event.preventDefault();
       void loadRegion(slug, true);
     });
+
+
+    document.getElementById('analyst-map').addEventListener('mousemove', (event) => {
+      const target = event.target;
+      if (!(target instanceof SVGElement)) return;
+      const path = target.closest('.map-region');
+      if (!(path instanceof SVGElement)) {
+        hideMapTooltip();
+        return;
+      }
+      const tooltip = path.getAttribute('data-tooltip');
+      if (!tooltip) {
+        hideMapTooltip();
+        return;
+      }
+      showMapTooltip(tooltip, event.clientX, event.clientY);
+    });
+    document.getElementById('analyst-map').addEventListener('mouseleave', () => hideMapTooltip());
 
     applyLayout();
     void loadDashboard();

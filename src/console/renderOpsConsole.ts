@@ -1,4 +1,5 @@
 import { getOpsConsoleClientScript } from './client.ts';
+import { renderPolicyFooterHtml, renderPolicyPanelHtml } from './policy.ts';
 
 export function renderOpsConsole(): string {
   return `<!doctype html>
@@ -18,6 +19,8 @@ export function renderOpsConsole(): string {
     p { margin: 6px 0; }
     pre { margin: 0; white-space: pre-wrap; max-height: 220px; overflow: auto; }
     a { color: #7ec8ff; }
+    .policy-footer { margin-top: 16px; border-top: 1px solid #333; padding-top: 10px; color: #b2b2b2; font-size: 12px; }
+    .policy-card p { font-size: 13px; line-height: 1.45; }
   </style>
 </head>
 <body>
@@ -41,6 +44,10 @@ export function renderOpsConsole(): string {
   <section class="card"><h2>Recent source runs</h2><table id="source-runs-table"></table></section>
   <section class="card"><h2>Source freshness</h2><table id="freshness-table"></table></section>
   <section class="card"><h2>Recent failures</h2><table id="failures-table"></table></section>
+
+  ${renderPolicyPanelHtml()}
+
+  ${renderPolicyFooterHtml()}
 
   <script>${getOpsConsoleClientScript()}</script>
 </body>
