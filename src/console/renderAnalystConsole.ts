@@ -185,6 +185,11 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
         <p class="detail-subtitle">Recent upstream observations feeding factor calculations.</p>
         <table id="signals-table"></table>
       </section>
+      <section class="detail-section">
+        <h3>Source contribution summary</h3>
+        <p class="detail-subtitle">Coverage and recency by upstream source for the selected region.</p>
+        <table id="source-contributions-table"></table>
+      </section>
     </div>
 
     <div class="detail-grid">

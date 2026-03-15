@@ -241,6 +241,22 @@ export async function getRegionDetail(db: QueryableDb, slug: string, historyLimi
     [regionId, new Date(Date.now() - 48 * 3600 * 1000).toISOString(), signalLimit],
   );
 
+
+  const sourceContributions = await db.query<Record<string, unknown>>(
+    `SELECT ds.name as source_name,
+            COUNT(*)::int as signal_count,
+            MAX(ns.event_time) as latest_event_time,
+            AVG(ns.value)::numeric(10, 2) as avg_raw_value,
+            AVG(ds.reliability_weight)::numeric(10, 2) as avg_reliability
+      FROM normalized_signals ns
+      JOIN data_sources ds ON ds.id = ns.source_id
+     WHERE ns.region_id = $1
+       AND ns.event_time >= $2
+     GROUP BY ds.name
+     ORDER BY signal_count DESC, latest_event_time DESC`,
+    [regionId, new Date(Date.now() - 48 * 3600 * 1000).toISOString()],
+  );
+
   const history = await db.query<Record<string, unknown>>(
     `SELECT rs.snapshot_time,
             rs.composite_score,
@@ -291,6 +307,7 @@ export async function getRegionDetail(db: QueryableDb, slug: string, historyLimi
       delta_7d: Number(head.delta_7d),
     })),
     recent_signals: recentSignals.rows,
+    source_contributions: sourceContributions.rows,
     history: history.rows,
   };
 }

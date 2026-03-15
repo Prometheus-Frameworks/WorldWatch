@@ -57,6 +57,8 @@ test('runScoringSnapshotJob uses latest signal per type inside lookback window',
   const factorsJson = String(regionScoreInsert.params?.[12]);
   assert.equal(factorsJson.includes('"value":80'), true);
   assert.equal(factorsJson.includes('"value":10'), false);
+  assert.equal(factorsJson.includes('"domain":"conflictPressure"'), true);
+  assert.equal(factorsJson.includes('"explainabilityNote"'), true);
 });
 
 test('runScoringSnapshotJob uses injected config for normalization and health movement', async () => {

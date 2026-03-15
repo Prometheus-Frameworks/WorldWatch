@@ -13,6 +13,8 @@ export interface SubScores {
 
 export interface SignalHealth {
   source: 'acled' | 'gdelt' | 'imf-portwatch' | 'eia' | 'unhcr' | 'nasa-firms';
+  domain?: keyof SubScores;
+  observedSignals?: number;
   isMovingUp: boolean;
   isReliable: boolean;
   ageMinutes: number;

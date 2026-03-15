@@ -127,6 +127,12 @@ test('getRegionDetail assembles score, deltas, recent signals and history', asyn
         };
       }
 
+      if (sql.includes('GROUP BY ds.name')) {
+        return {
+          rows: [{ source_name: 'acled', signal_count: 2, latest_event_time: '2026-01-01T00:00:00Z', avg_raw_value: 10, avg_reliability: 0.9 }] as T[],
+        };
+      }
+
       if (sql.includes('FROM region_scores rs')) {
         return {
           rows: [{ snapshot_time: '2026-01-01T00:00:00Z', composite_score: 75, confidence_band: 'high', delta_24h: 6, delta_7d: 10, rank_movement: 3 }] as T[],
@@ -142,6 +148,7 @@ test('getRegionDetail assembles score, deltas, recent signals and history', asyn
   assert.equal((detail as Record<string, unknown>).latest_score !== undefined, true);
   assert.equal(Array.isArray((detail as Record<string, unknown>).recent_signals), true);
   assert.equal(Array.isArray((detail as Record<string, unknown>).history), true);
+  assert.equal(Array.isArray((detail as Record<string, unknown>).source_contributions), true);
   assert.equal(Array.isArray((detail as Record<string, unknown>).triage_notes), true);
   const history = (detail as { history: Array<Record<string, unknown>> }).history;
   assert.equal(history[0].confidence_band, 'high');

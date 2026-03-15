@@ -71,7 +71,7 @@ export function toTriageInput(region: Partial<TriageInput>): TriageInput {
 }
 
 export function buildTriageSpotlight(regions: Array<{ slug: string; name: string } & Partial<TriageInput>>): TriageSpotlight[] {
-  const sorted = [...regions].sort((a, b) => b.composite_score - a.composite_score);
+  const sorted = [...regions].sort((a, b) => Number(b.composite_score ?? 0) - Number(a.composite_score ?? 0));
   return sorted.slice(0, 5).map((region) => ({
     slug: region.slug,
     name: region.name,
