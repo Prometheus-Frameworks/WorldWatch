@@ -25,6 +25,7 @@ export function getAnalystConsoleClientScript(): string {
     let topMoverSlugs = new Set();
     let lastTableSignature = '';
     let lastMapSignature = '';
+    let hoveredRegionSlug = null;
 
     function formatTimestamp(value) {
       if (!value) return '-';
@@ -43,6 +44,39 @@ export function getAnalystConsoleClientScript(): string {
 
     function getMapTooltipText(row) {
       return row.name + ' · ' + row.status_band + ' · score ' + formatNum(Number(row.composite_score), 1) + ' · Δ24h ' + formatNum(Number(row.delta_24h), 1) + ' · Δ7d ' + formatNum(Number(row.delta_7d), 1);
+    }
+
+    function computeSubscoreWidth(value) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return 0;
+      return Math.max(0, Math.min(100, Math.round(numeric)));
+    }
+
+    function getTriageNotes(detail) {
+      const latest = detail?.latest_score;
+      if (!latest) return [];
+      const notes = [];
+      const delta24h = Number(detail?.latest_delta?.delta_24h ?? latest.delta_24h ?? 0);
+      const delta7d = Number(detail?.latest_delta?.delta_7d ?? latest.delta_7d ?? 0);
+
+      if (Number.isFinite(delta24h) && delta24h >= 7) {
+        notes.push({ title: 'Top mover (24h)', copy: 'Rapid daily movement detected. Prioritize validation of newest factor inputs.' });
+      }
+      if (Number.isFinite(delta7d) && delta7d >= 12) {
+        notes.push({ title: 'Sustained weekly acceleration', copy: '7-day trend remains elevated. Check whether pressure is broad-based or source-specific.' });
+      }
+      if ((latest.status_band === 'high' || latest.status_band === 'critical') && latest.freshness_state !== 'fresh') {
+        notes.push({ title: 'Stale high-risk pattern', copy: 'Risk is high but freshness is degraded. Consider source rerun or analyst verification.' });
+      }
+      if (Number(latest.composite_score) >= 70 && latest.confidence_band === 'low') {
+        notes.push({ title: 'High risk with low confidence', copy: 'Elevated score and lower confidence suggest careful human review before escalation.' });
+      }
+
+      if (notes.length === 0) {
+        notes.push({ title: 'No immediate triage flags', copy: 'Current region mix is comparatively stable. Continue normal monitoring cadence.' });
+      }
+
+      return notes.slice(0, 3);
     }
 
     function getSelectValue(id) {
@@ -131,7 +165,7 @@ export function getAnalystConsoleClientScript(): string {
       }
 
       const sorted = sortRegions(filtered);
-      const signature = getRenderSignature(sorted) + '|active:' + (activeRegionSlug ?? 'none');
+      const signature = getRenderSignature(sorted) + '|active:' + (activeRegionSlug ?? 'none') + '|hover:' + (hoveredRegionSlug ?? 'none');
       if (signature === lastTableSignature) {
         return;
       }
@@ -141,7 +175,9 @@ export function getAnalystConsoleClientScript(): string {
 
       const body = sorted.map((row) => {
         const isActive = row.slug === activeRegionSlug;
-        return '<tr data-region="' + row.slug + '"' + (isActive ? ' class="active-row"' : '') + '>' +
+        const isHovered = row.slug === hoveredRegionSlug;
+        const rowClass = isActive ? 'active-row' : (isHovered ? 'hover-row' : '');
+        return '<tr data-region="' + row.slug + '"' + (rowClass ? ' class="' + rowClass + '"' : '') + '>' +
           '<td><button class="region-link" data-region="' + row.slug + '">' + row.name + '</button></td>' +
           '<td>' + formatNum(row.composite_score, 1) + '</td>' +
           '<td><span class="pill">' + row.status_band + '</span></td>' +
@@ -257,7 +293,10 @@ export function getAnalystConsoleClientScript(): string {
         '</div>';
 
       document.getElementById('subscores-list').innerHTML = subscores
-        .map(([label, value]) => '<li><strong>' + label + ':</strong> ' + formatNum(Number(value), 1) + '</li>')
+        .map(([label, value]) => {
+          const width = computeSubscoreWidth(value);
+          return '<article class="subscore-row"><p><strong>' + label + '</strong><span>' + formatNum(Number(value), 1) + '</span></p><div class="subscore-bar"><span style="width:' + width + '%"></span></div></article>';
+        })
         .join('');
 
       const factors = Array.isArray(detail.factor_payload) ? detail.factor_payload : [];
@@ -297,6 +336,14 @@ export function getAnalystConsoleClientScript(): string {
         { key: 'delta_7d', header: 'Δ 7d', render: (v) => formatNum(Number(v), 1) },
         { key: 'rank_movement', header: 'Rank Δ', render: (v) => formatNum(Number(v), 0) },
       ]);
+
+      const triageNotes = getTriageNotes(detail);
+      const triageContainer = document.getElementById('triage-notes');
+      if (triageContainer instanceof HTMLElement) {
+        triageContainer.innerHTML = triageNotes
+          .map((note) => '<article class="triage-note"><p><strong>' + note.title + '</strong></p><p>' + note.copy + '</p></article>')
+          .join('');
+      }
 
       container.hidden = false;
     }
@@ -386,7 +433,7 @@ export function getAnalystConsoleClientScript(): string {
       const sortedVisibleRows = getFilteredSortedRegions();
       const visibleSlugs = new Set(sortedVisibleRows.map((row) => row.slug));
       const visibleGeo = geoRegions.filter((row) => visibleSlugs.has(row.slug));
-      const mapSignature = sortedVisibleRows.map((row) => row.slug + ':' + row.status_band).join(';') + '|active:' + (activeRegionSlug ?? 'none');
+      const mapSignature = sortedVisibleRows.map((row) => row.slug + ':' + row.status_band).join(';') + '|active:' + (activeRegionSlug ?? 'none') + '|hover:' + (hoveredRegionSlug ?? 'none');
       if (visibleGeo.length === 0) {
         map.innerHTML = '';
         lastMapSignature = '';
@@ -400,10 +447,11 @@ export function getAnalystConsoleClientScript(): string {
       const bounds = getBoundsFromGeometry(visibleGeo);
       const paths = visibleGeo.map((row) => {
         const isActive = row.slug === activeRegionSlug;
+        const isHovered = row.slug === hoveredRegionSlug;
         const hasActive = Boolean(activeRegionSlug);
         const fill = STATUS_COLORS[row.status_band] ?? STATUS_COLORS.unknown;
         const pathD = geometryToPathD(row.geometry, bounds);
-        const className = 'map-region' + (isActive ? ' active' : '') + (hasActive && !isActive ? ' dimmed' : '');
+        const className = 'map-region' + (isActive ? ' active' : '') + (isHovered && !isActive ? ' hover' : '') + (hasActive && !isActive && !isHovered ? ' dimmed' : '');
         const title = getMapTooltipText(row);
         return '<path class="' + className + '" data-region="' + row.slug + '" data-tooltip="' + title + '" d="' + pathD + '" fill="' + fill + '" stroke="#1a2435" stroke-width="1" cursor="pointer"><title>' + title + '</title></path>';
       }).join('');
@@ -427,6 +475,13 @@ export function getAnalystConsoleClientScript(): string {
       tooltip.hidden = true;
     }
 
+    function setHoveredRegion(slug) {
+      if (hoveredRegionSlug === slug) return;
+      hoveredRegionSlug = slug;
+      renderRegionsTable(regions);
+      renderMap();
+    }
+
     function syncRegionViews() {
       const visible = getFilteredSortedRegions();
       activeRegionSlug = deriveNextActiveRegionSlug(visible.map((row) => row.slug), activeRegionSlug);
@@ -436,6 +491,7 @@ export function getAnalystConsoleClientScript(): string {
 
     async function syncRegionViewsAndMaybeLoadDetail(forceRefresh) {
       const previous = activeRegionSlug;
+      setHoveredRegion(null);
       syncRegionViews();
       if (activeRegionSlug && (forceRefresh || activeRegionSlug !== previous)) {
         await loadRegion(activeRegionSlug, true);
@@ -534,6 +590,26 @@ export function getAnalystConsoleClientScript(): string {
     document.getElementById('filter-evidence-state').addEventListener('change', () => { void syncRegionViewsAndMaybeLoadDetail(false); });
     document.getElementById('analyst-layout').addEventListener('change', () => applyLayout());
 
+    document.body.addEventListener('mouseover', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const regionNode = target.closest('[data-region]');
+      if (!(regionNode instanceof HTMLElement)) return;
+      const slug = regionNode.getAttribute('data-region');
+      if (!slug || slug === activeRegionSlug) return;
+      setHoveredRegion(slug);
+    });
+
+    document.body.addEventListener('mouseout', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const regionNode = target.closest('[data-region]');
+      if (!(regionNode instanceof HTMLElement)) return;
+      const related = event.relatedTarget;
+      if (related instanceof HTMLElement && related.closest('[data-region]') === regionNode) return;
+      if (hoveredRegionSlug && hoveredRegionSlug !== activeRegionSlug) setHoveredRegion(null);
+    });
+
     document.body.addEventListener('click', (event) => {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
@@ -542,6 +618,7 @@ export function getAnalystConsoleClientScript(): string {
       const slug = regionNode.getAttribute('data-region');
       if (!slug) return;
       event.preventDefault();
+      setHoveredRegion(null);
       void loadRegion(slug, true);
     });
 
@@ -554,6 +631,8 @@ export function getAnalystConsoleClientScript(): string {
         hideMapTooltip();
         return;
       }
+      const slug = path.getAttribute('data-region');
+      if (slug && slug !== activeRegionSlug) setHoveredRegion(slug);
       const tooltip = path.getAttribute('data-tooltip');
       if (!tooltip) {
         hideMapTooltip();
@@ -561,7 +640,7 @@ export function getAnalystConsoleClientScript(): string {
       }
       showMapTooltip(tooltip, event.clientX, event.clientY);
     });
-    document.getElementById('analyst-map').addEventListener('mouseleave', () => hideMapTooltip());
+    document.getElementById('analyst-map').addEventListener('mouseleave', () => { hideMapTooltip(); setHoveredRegion(null); });
 
     applyLayout();
     void loadDashboard();

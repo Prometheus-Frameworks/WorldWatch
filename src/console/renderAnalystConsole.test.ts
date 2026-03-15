@@ -15,3 +15,16 @@ test('analyst console bootstrap includes consolidated dashboard endpoint and ref
   assert.ok(html.includes('setInterval(() => {'));
   assert.ok(html.includes('void loadDashboard();'));
 });
+
+test('analyst console includes map-table coordination and triage readability affordances', () => {
+  const html = renderAnalystConsole({
+    posture: 'internal',
+    bannerText: 'Internal-only workspace',
+    subtitleText: 'For internal analyst and operations workflows only.',
+  });
+
+  assert.ok(html.includes('.map-region.hover'));
+  assert.ok(html.includes('Hover for a quick read. Click a region to lock table + detail selection.'));
+  assert.ok(html.includes('id="triage-notes"'));
+  assert.ok(html.includes('Largest bars indicate strongest risk pressure.'));
+});
