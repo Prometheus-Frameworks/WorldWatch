@@ -5,7 +5,9 @@ import type { QueryableDb } from '../ingestion/types.ts';
 import {
   getLatestCycleStatus,
   getOpsHealth,
+  getRecentCycleRuns,
   getRecentFailures,
+  getRecentSourceRuns,
   getRegionDetail,
   getRegionSummaries,
   getSourceFreshness,
@@ -169,4 +171,85 @@ test('ops queries return expected health and failure payloads', async () => {
   assert.equal(failures.length, 1);
   assert.equal(health.status, 'degraded');
   assert.deepEqual(health.stale_sources, ['imf-portwatch']);
+});
+
+
+test('getRecentCycleRuns shapes cycle metadata into dashboard rows', async () => {
+  const db: QueryableDb = {
+    async query<T>(sql: string, params?: unknown[]) {
+      assert.ok(sql.includes("WHERE job_type = 'cycle'"));
+      assert.equal(params?.[0], 2);
+      return {
+        rows: [{
+          id: 12,
+          status: 'partial',
+          started_at: '2026-01-01T00:00:00Z',
+          finished_at: '2026-01-01T00:02:00Z',
+          duration_ms: 120000,
+          records_processed: 75,
+          metadata_json: {
+            snapshotTime: '2026-01-01T00:02:00Z',
+            alertsGenerated: 4,
+            regionsScored: 18,
+            failedJobs: [{ name: 'gdelt' }],
+          },
+        }] as T[],
+      };
+    },
+  };
+
+  const rows = await getRecentCycleRuns(db, 2);
+  assert.equal(rows.length, 1);
+  assert.deepEqual(rows[0], {
+    id: 12,
+    status: 'partial',
+    started_at: '2026-01-01T00:00:00Z',
+    finished_at: '2026-01-01T00:02:00Z',
+    duration_ms: 120000,
+    records_processed: 75,
+    snapshot_time: '2026-01-01T00:02:00Z',
+    alerts_generated: 4,
+    regions_scored: 18,
+    failed_jobs: 1,
+  });
+});
+
+test('getRecentSourceRuns extracts source-run metrics from metadata', async () => {
+  const db: QueryableDb = {
+    async query<T>(sql: string, params?: unknown[]) {
+      assert.ok(sql.includes("WHERE job_type = 'source'"));
+      assert.equal(params?.[0], 5);
+      return {
+        rows: [{
+          id: 31,
+          job_name: 'imf_portwatch',
+          status: 'failed',
+          started_at: '2026-01-01T01:00:00Z',
+          finished_at: '2026-01-01T01:00:40Z',
+          duration_ms: 40000,
+          records_processed: 11,
+          error_message: 'timeout',
+          metadata_json: {
+            mappedRegions: 3,
+            insertedSignals: 9,
+          },
+        }] as T[],
+      };
+    },
+  };
+
+  const rows = await getRecentSourceRuns(db, 5);
+  assert.equal(rows.length, 1);
+  assert.deepEqual(rows[0], {
+    id: 31,
+    source_name: 'imf-portwatch',
+    status: 'failed',
+    started_at: '2026-01-01T01:00:00Z',
+    finished_at: '2026-01-01T01:00:40Z',
+    duration_ms: 40000,
+    records_processed: 11,
+    mapped_regions: 3,
+    inserted_signals: 9,
+    error_message: 'timeout',
+  });
 });

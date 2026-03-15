@@ -138,6 +138,8 @@ test('ops console data endpoints are fetch-compatible for the console', async ()
   const endpoints = [
     '/api/ops/summary',
     '/api/ops/cycle/latest',
+    '/api/ops/cycles',
+    '/api/ops/sources/runs',
     '/api/ops/source-freshness',
     '/api/ops/failures',
     '/api/regions',
@@ -190,6 +192,112 @@ test('manual cycle trigger rejects overlap while run is in-flight', async () => 
   releaseRun();
   const firstResponse = await firstRequest;
   assert.equal(firstResponse.status, 200);
+
+  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+});
+
+
+test('server serves extracted ops console HTML shell', async () => {
+  const db: QueryableDb = { query: async <T>() => ({ rows: [] as T[] }) };
+  const server = createWorldWatchApiServer(db);
+
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  if (!address) throw new Error('Server address unavailable');
+
+  const response = await fetch(`http://127.0.0.1:${address.port}/ops`);
+  assert.equal(response.status, 200);
+  const html = await (response as unknown as { text: () => Promise<string> }).text();
+  assert.ok(html.includes('WorldWatch Internal Ops Console'));
+  assert.ok(html.includes('Recent cycle runs'));
+  assert.ok(html.includes('Recent source runs'));
+
+  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+});
+
+test('manual cycle trigger returns cycle payload on success', async () => {
+  const db: QueryableDb = { query: async <T>() => ({ rows: [] as T[] }) };
+  const server = createWorldWatchApiServer(db, {
+    runCycle: async () => ({
+      status: 'success',
+      startedAt: '2026-01-01T00:00:00Z',
+      finishedAt: '2026-01-01T00:00:10Z',
+      durationMs: 10000,
+      jobs: [],
+      totalRecordsProcessed: 22,
+      sourceRecordsProcessed: { acled: 10, gdelt: 12 },
+      snapshotRowsWritten: 9,
+      alertsGenerated: 3,
+      regionsScored: 9,
+    }),
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  if (!address) throw new Error('Server address unavailable');
+
+  const response = await fetch(`http://127.0.0.1:${address.port}/api/ops/cycle/run`, { method: 'POST' });
+  assert.equal(response.status, 200);
+  const payload = (await response.json()) as Record<string, unknown>;
+  assert.equal(payload.state, 'completed');
+
+  const cycle = payload.cycle as Record<string, unknown>;
+  assert.equal(cycle.totalRecordsProcessed, 22);
+  assert.equal(cycle.alertsGenerated, 3);
+
+  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+});
+
+test('ops history endpoints return dashboard-shaped rows', async () => {
+  const db: QueryableDb = {
+    async query<T>(sql: string) {
+      if (sql.includes("WHERE job_type = 'cycle'")) {
+        return {
+          rows: [{
+            id: 41,
+            status: 'success',
+            started_at: '2026-01-01T00:00:00Z',
+            finished_at: '2026-01-01T00:01:00Z',
+            duration_ms: 60000,
+            records_processed: 40,
+            metadata_json: { snapshotTime: '2026-01-01T00:01:00Z', alertsGenerated: 2, regionsScored: 7, failedJobs: [] },
+          }] as T[],
+        };
+      }
+      if (sql.includes("WHERE job_type = 'source'")) {
+        return {
+          rows: [{
+            id: 42,
+            job_name: 'imf_portwatch',
+            status: 'failed',
+            started_at: '2026-01-01T00:02:00Z',
+            finished_at: '2026-01-01T00:02:20Z',
+            duration_ms: 20000,
+            records_processed: 9,
+            error_message: 'boom',
+            metadata_json: { mappedRegions: 3, insertedSignals: 6 },
+          }] as T[],
+        };
+      }
+      return { rows: [] as T[] };
+    },
+  };
+
+  const server = createWorldWatchApiServer(db);
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  if (!address) throw new Error('Server address unavailable');
+
+  const cycleResponse = await fetch(`http://127.0.0.1:${address.port}/api/ops/cycles?limit=1`);
+  assert.equal(cycleResponse.status, 200);
+  const cyclePayload = (await cycleResponse.json()) as Array<Record<string, unknown>>;
+  assert.equal(cyclePayload[0].alerts_generated, 2);
+
+  const sourceResponse = await fetch(`http://127.0.0.1:${address.port}/api/ops/sources/runs?limit=1`);
+  assert.equal(sourceResponse.status, 200);
+  const sourcePayload = (await sourceResponse.json()) as Array<Record<string, unknown>>;
+  assert.equal(sourcePayload[0].source_name, 'imf-portwatch');
+  assert.equal(sourcePayload[0].mapped_regions, 3);
 
   await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
 });

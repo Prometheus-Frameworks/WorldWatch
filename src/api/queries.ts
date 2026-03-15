@@ -42,8 +42,36 @@ export interface RecentFailureRow {
   status: string;
   started_at: string;
   finished_at: string;
+  duration_ms: number;
+  records_processed: number;
   error_message: string | null;
   metadata_json: Record<string, unknown>;
+}
+
+export interface CycleRunHistoryRow {
+  id: number;
+  status: string;
+  started_at: string;
+  finished_at: string;
+  duration_ms: number;
+  records_processed: number;
+  snapshot_time: string | null;
+  alerts_generated: number;
+  regions_scored: number;
+  failed_jobs: number;
+}
+
+export interface SourceRunHistoryRow {
+  id: number;
+  source_name: string;
+  status: string;
+  started_at: string;
+  finished_at: string;
+  duration_ms: number;
+  records_processed: number;
+  mapped_regions: number;
+  inserted_signals: number;
+  error_message: string | null;
 }
 
 
@@ -308,6 +336,76 @@ export async function getRecentFailures(db: QueryableDb, limit = 20): Promise<Re
   return result.rows;
 }
 
+export async function getRecentCycleRuns(db: QueryableDb, limit = 20): Promise<CycleRunHistoryRow[]> {
+  const result = await db.query<LatestCycleStatus>(
+    `SELECT id,
+            status::text AS status,
+            started_at,
+            finished_at,
+            duration_ms,
+            records_processed,
+            metadata_json
+       FROM job_runs
+      WHERE job_type = 'cycle'
+      ORDER BY started_at DESC
+      LIMIT $1`,
+    [limit],
+  );
+
+  return result.rows.map((row) => {
+    const metadata = row.metadata_json ?? {};
+    const failedJobs = Array.isArray(metadata.failedJobs) ? metadata.failedJobs.length : 0;
+
+    return {
+      id: row.id,
+      status: row.status,
+      started_at: row.started_at,
+      finished_at: row.finished_at,
+      duration_ms: row.duration_ms,
+      records_processed: row.records_processed,
+      snapshot_time: asStringOrNull(metadata.snapshotTime),
+      alerts_generated: asNumberOrZero(metadata.alertsGenerated),
+      regions_scored: asNumberOrZero(metadata.regionsScored),
+      failed_jobs: failedJobs,
+    };
+  });
+}
+
+export async function getRecentSourceRuns(db: QueryableDb, limit = 50): Promise<SourceRunHistoryRow[]> {
+  const result = await db.query<RecentFailureRow>(
+    `SELECT id,
+            job_name,
+            status::text AS status,
+            started_at,
+            finished_at,
+            duration_ms,
+            records_processed,
+            error_message,
+            metadata_json
+       FROM job_runs
+      WHERE job_type = 'source'
+      ORDER BY started_at DESC
+      LIMIT $1`,
+    [limit],
+  );
+
+  return result.rows.map((row) => {
+    const metadata = row.metadata_json ?? {};
+    return {
+      id: row.id,
+      source_name: String(row.job_name).replaceAll('_', '-'),
+      status: row.status,
+      started_at: row.started_at,
+      finished_at: row.finished_at,
+      duration_ms: row.duration_ms,
+      records_processed: row.records_processed,
+      mapped_regions: asNumberOrZero(metadata.mappedRegions),
+      inserted_signals: asNumberOrZero(metadata.insertedSignals),
+      error_message: row.error_message,
+    };
+  });
+}
+
 export async function getOpsHealth(db: QueryableDb): Promise<Record<string, unknown>> {
   const [latestCycle, sourceFreshness, recentFailures] = await Promise.all([
     getLatestCycleStatus(db),
@@ -400,4 +498,12 @@ export async function getOpsSummary(db: QueryableDb): Promise<OpsSummary> {
     latest_snapshot_alerts_generated: snapshotRow?.alerts_generated ?? 0,
     latest_snapshot_regions_scored: snapshotRow?.regions_scored ?? 0,
   };
+}
+
+function asNumberOrZero(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function asStringOrNull(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
 }
