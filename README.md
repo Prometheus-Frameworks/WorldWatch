@@ -1,35 +1,76 @@
 # WorldWatch
 
-WorldWatch now includes runtime bootstrap scripts for operations workflows and an internal ops API surface.
+WorldWatch is an internal analyst + operations system for **civilian, public-source geopolitical monitoring**. It ingests open-source signals, scores regional risk snapshots, and serves an analyst dashboard plus an internal ops console.
 
-## Runtime scripts
+> WorldWatch is a civilian, public-source monitoring and analysis tool for personal, research, journalistic, and general geopolitical awareness use. It is not intended for military targeting, covert surveillance, sanctions evasion, or use by prohibited persons or entities.
 
-All scripts use environment variables and run directly with TypeScript strip-types mode.
+## Product surfaces
 
-- `npm run db:migrate` — applies `db/schema.sql` to the configured Postgres database.
-- `npm run db:seed` — applies all SQL files in `db/seeds/` in lexical order.
-- `npm run cycle:run` — executes one full WorldWatch ingestion + scoring cycle.
-- `npm run api:start` — starts the API server.
+- `GET /` or `GET /analyst` — analyst dashboard (table-first workflow, optional internal SVG map).
+- `GET /ops` — internal operations console (scheduler/runtime visibility and manual cycle trigger).
 
-### Required environment variables
+Both surfaces include About / Usage / Terms content and acceptable-use language.
+
+## Data/source coverage
+
+Canonical source runners currently include:
+
+- ACLED (`runAcledSourceJob.ts`)
+- GDELT (`runGdeltSourceJob.ts`)
+- IMF PortWatch (`runImfPortWatchSourceJob.ts`)
+- EIA (`runEiaSourceJob.ts`)
+- UNHCR (`runUnhcrSourceJob.ts`)
+- NASA FIRMS (`runNasaFirmsSourceJob.ts`)
+
+## Runtime + scheduler scripts
+
+All scripts run with Node TypeScript strip-types mode.
+
+- `npm run db:migrate` — apply SQL schema migrations.
+- `npm run db:seed` — seed regions and data source metadata.
+- `npm run cycle:run` — run one complete ingestion + scoring cycle.
+- `npm run scheduler:start` — run recurring scheduler loop.
+- `npm run api:start` — start API + dashboard server.
+
+## Environment variables
+
+### Required
 
 - `DATABASE_URL`
 - `ACLED_URL`
 - `GDELT_URL`
 - `IMF_PORTWATCH_URL`
 - `EIA_URL`
+- `UNHCR_URL`
+- `NASA_FIRMS_URL`
 
-### Optional environment variables
+### Optional
 
 - `PORT` (default `8787`)
 
-## Internal ops API
+## API overview
 
-In addition to region/feed endpoints, the API now exposes internal operational monitoring endpoints backed by `job_runs`:
+### Analyst endpoints
+
+- `GET /api/analyst/dashboard` (consolidated payload for dashboard bootstrap)
+- `GET /api/analyst/summary`
+- `GET /api/regions`
+- `GET /api/regions/geo`
+- `GET /api/regions/:slug`
+- `GET /api/feed`
+- `GET /api/history/:slug`
+
+### Ops endpoints
 
 - `GET /api/ops/health`
+- `GET /api/ops/summary`
 - `GET /api/ops/cycle/latest`
+- `GET /api/ops/cycles?limit=20`
+- `GET /api/ops/sources/runs?limit=50`
 - `GET /api/ops/source-freshness`
 - `GET /api/ops/failures?limit=20`
+- `POST /api/ops/cycle/run`
 
-These endpoints support run health monitoring, latest cycle status, source freshness checks, and recent failures for internal operations.
+## Civilian acceptable use
+
+You may not use WorldWatch to support military targeting, kinetic operations, covert surveillance, sanctions evasion, unlawful export activity, or access by prohibited persons or entities. WorldWatch is intended for lawful public-source monitoring and analysis only.

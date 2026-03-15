@@ -1,4 +1,5 @@
 import { getAnalystConsoleClientScript } from './analystClient.ts';
+import { renderPolicyFooterHtml, renderPolicyPanelHtml } from './policy.ts';
 
 export function renderAnalystConsole(): string {
   return `<!doctype html>
@@ -45,6 +46,11 @@ export function renderAnalystConsole(): string {
     .map-legend { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; color: #9ca8b7; }
     .map-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
     .map-hidden { display: none; }
+    .map-region.active { stroke: #ffffff; stroke-width: 2.6; fill-opacity: 0.92; }
+    .map-region.dimmed { fill-opacity: 0.45; }
+    .map-tooltip { position: fixed; pointer-events: none; background: #0f141d; border: 1px solid #4d6d95; color: #dcecff; border-radius: 6px; padding: 6px 8px; font-size: 12px; z-index: 20; max-width: 260px; box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
+    .policy-footer { margin-top: 16px; border-top: 1px solid #2f3b4d; padding-top: 10px; color: #a7b7cb; font-size: 12px; }
+    .policy-card p { font-size: 13px; line-height: 1.45; }
     @media (max-width: 1024px) {
       .grid, .detail-grid, .primary-panel-layout.split, .controls-wrap { grid-template-columns: 1fr; }
       .layout-toggle { margin-left: 0; }
@@ -116,6 +122,7 @@ export function renderAnalystConsole(): string {
             <svg id="analyst-map" viewBox="0 0 960 480" role="img" aria-label="Internal region geometry map"></svg>
           </div>
           <div class="map-legend" id="map-legend"></div>
+          <div id="map-tooltip" class="map-tooltip" hidden></div>
         </section>
       </div>
     </section>
@@ -162,6 +169,10 @@ export function renderAnalystConsole(): string {
       </section>
     </div>
   </section>
+
+  ${renderPolicyPanelHtml()}
+
+  ${renderPolicyFooterHtml()}
 
   <script>${getAnalystConsoleClientScript()}</script>
 </body>

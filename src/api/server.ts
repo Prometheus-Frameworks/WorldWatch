@@ -123,6 +123,23 @@ async function routeRequest(
     return;
   }
 
+
+  if (path === '/api/analyst/dashboard') {
+    const [regions, regionsGeo, feed, summary] = await Promise.all([
+      getRegionSummaries(db),
+      getRegionGeo(db),
+      getFeed(db),
+      getAnalystSummary(db),
+    ]);
+    sendJson(res, 200, {
+      regions,
+      regions_geo: regionsGeo,
+      feed,
+      summary,
+    });
+    return;
+  }
+
   if (path === '/api/ops/health') {
     sendJson(res, 200, await getOpsHealth(db));
     return;

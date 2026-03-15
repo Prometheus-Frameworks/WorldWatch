@@ -1,37 +1,32 @@
-# WorldWatch MVP Foundation (Phase 0 + Scoring Contract)
+# WorldWatch Foundation (Current Internal Posture)
 
-This repository now includes the minimum foundation to unblock ingestion and API work:
+WorldWatch is an **internal-facing analyst + operations system** built around a stable schema, deterministic scoring, and explainable public-source inputs.
 
-- Postgres/PostGIS schema for region-aware ingestion, normalized signals, scoring snapshots, and change feed output.
-- Seed file with 12 initial regions/chokepoints from the MVP scope.
-- Deterministic score contract in TypeScript with config-driven composite weights.
-- Confidence, evidence, and freshness derivation helpers separated from severity.
+## Canonical system components
 
-## Why this order
+- Runtime + scheduler (`src/runtime/*`, `src/scripts/runScheduler.ts`)
+- Ingestion/source runners (`src/jobs/sourceRunners/*`)
+- Snapshot scoring (`src/jobs/scoringSnapshot/*`)
+- Analyst dashboard (`/`)
+- Internal SVG analyst map (`/api/regions/geo` consumed by dashboard)
+- Ops console and ops API (`/ops`, `/api/ops/*`)
 
-Per product direction, the schema and scoring contract are built first to prevent UI-first drift.
-This defines what every downstream service (ingestion workers, API handlers, frontend cards) can trust.
+## Analyst workflow emphasis
 
-## Included artifacts
+The table/detail workflow is primary:
 
-- `db/schema.sql` — core tables and enums.
-- `db/seeds/001_regions.sql` — initial tracked geography.
-- `src/shared/scoring/*` — scoring contract, config, and deterministic calculations.
+- region table + filters + detail panes drive analysis
+- map is optional through layout toggle and serves as spatial context
+- map/table/filter selection stays synchronized to avoid split-brain UX
 
-## Current scoring behavior
+## API shape
 
-- Composite score is 0-100, weighted by configuration.
-- Status band is derived from composite score thresholds.
-- Confidence band is derived from reliability + multi-source directional alignment.
-- Freshness is derived from signal recency windows.
-- Evidence state resolves to `confirmed`, `mixed`, `incomplete`, or `unknown`.
+Analyst UX can bootstrap from a consolidated payload at `GET /api/analyst/dashboard`, while existing granular endpoints remain available.
 
-## Next implementation step
+Ops endpoints provide cycle health, source freshness, failures, run history, and manual cycle execution.
 
-Build source adapters and normalized mapping jobs:
-1. ACLED adapter
-2. GDELT adapter
-3. IMF PortWatch adapter
-4. EIA adapter
+## Policy posture
 
-Then persist normalized signals and run scheduled snapshot scoring.
+WorldWatch is a civilian public-source monitoring tool. It is intended for lawful research, journalistic, personal, and general geopolitical awareness use.
+
+It is explicitly not intended for military targeting, kinetic operations, covert surveillance, sanctions evasion, unlawful export activity, or prohibited-user access.

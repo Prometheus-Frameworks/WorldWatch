@@ -1,75 +1,44 @@
-# Ingestion + Scoring Snapshot Implementation
+# Ingestion + Snapshot Runtime (Current)
 
-This phase adds four ingestion adapters and source runner jobs plus a scoring snapshot job while keeping schema/scoring contracts canonical.
+This doc reflects the current canonical ingestion/scoring pipeline used by the analyst dashboard and ops console.
 
-## Seeded sources
+## Source coverage
 
-`db/seeds/002_data_sources.sql` seeds canonical source metadata:
+`db/seeds/002_data_sources.sql` and `src/jobs/sourceRunners/` cover:
 
-- `acled`
-- `gdelt`
-- `imf-portwatch`
-- `eia`
+- ACLED
+- GDELT
+- IMF PortWatch
+- EIA
+- UNHCR
+- NASA FIRMS
 
-## Normalized signal contract
+Each source runner fetches public-source data, maps events/signals to tracked regions, and writes normalized data for scoring.
 
-`src/shared/signals/types.ts` defines normalized signal types and domains:
+## Pipeline shape
 
-- conflict: fatalities, event intensity, tension
-- narrative: mentions, negative tone
-- chokepoint: congestion, delay hours, transit volume stress proxy
-- oil: price, price volatility
+1. Source runners fetch and normalize records.
+2. Raw payloads persist to `raw_events`.
+3. Normalized metrics persist to `normalized_signals`.
+4. Snapshot job computes per-region scores/deltas and alert feed entries.
+5. Analyst endpoints read latest snapshots/history.
 
-These types are persisted to `normalized_signals.signal_type`.
+## Runtime entrypoints
 
-## Region mapping layer
+- `src/scripts/runCycle.ts` — one full world-state cycle.
+- `src/scripts/runScheduler.ts` — recurring scheduler loop.
+- `src/scripts/startApi.ts` — API + analyst/ops surfaces.
 
-`src/ingestion/regionMapper.ts` resolves regions by:
+## Scoring snapshot output
 
-1. manual chokepoint overrides (human-readable hint -> canonical region slug), then
-2. PostGIS spatial intersection (`ST_Intersects`) for region geometry, then
-3. buffered proximity search (`ST_DWithin`) for near-boundary and maritime events, then
-4. optional region slug/name hint fallback.
-
-## Adapters
-
-- `acledAdapter.ts`
-- `gdeltAdapter.ts`
-- `imfPortWatchAdapter.ts`
-- `eiaAdapter.ts`
-
-Each adapter follows the same persistence contract:
-
-1. persist source payload into `raw_events`
-2. resolve one-or-many region ids
-3. emit normalized signals into `normalized_signals`
-
-`normalized_signals` now has a dedupe key on `(region_id, source_id, signal_type, event_time)` and ingestion uses upsert semantics to keep reruns idempotent.
-
-## Source runner jobs
-
-`src/jobs/sourceRunners/*` adds source-specific runner jobs that:
-
-1. fetch source payloads
-2. transform raw records to adapter event contracts
-3. ingest through existing adapters
-
-Runner files:
-
-- `runAcledSourceJob.ts`
-- `runGdeltSourceJob.ts`
-- `runImfPortWatchSourceJob.ts`
-- `runEiaSourceJob.ts`
-
-## Snapshot scoring job
-
-`src/jobs/scoringSnapshot/runScoringSnapshotJob.ts` computes per-region snapshots and writes:
+`src/jobs/scoringSnapshot/runScoringSnapshotJob.ts` writes:
 
 - `region_scores`
 - `region_deltas`
 - `alerts_feed`
 
-Signal selection for scoring now uses the latest signal per signal type inside the lookback window.
+The scoring contract remains deterministic and config-driven (`src/shared/scoring/*`, `src/jobs/scoringSnapshot/config.ts`).
 
-All normalization caps, per-subscore signal weights, lookback windows, and alert thresholds are in
-`src/jobs/scoringSnapshot/config.ts`.
+## Civilian-use boundary
+
+WorldWatch is positioned as an internal, civilian public-source monitoring and analysis system. It is not a military targeting or covert surveillance product.
