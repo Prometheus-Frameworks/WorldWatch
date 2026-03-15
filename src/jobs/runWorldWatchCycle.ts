@@ -45,6 +45,11 @@ export interface RunWorldWatchCycleResult {
   durationMs: number;
   jobs: CycleJobResult[];
   snapshotTime?: string;
+  totalRecordsProcessed: number;
+  sourceRecordsProcessed: Record<string, number>;
+  snapshotRowsWritten: number;
+  alertsGenerated: number;
+  regionsScored: number;
 }
 
 export async function runWorldWatchCycle(input: RunWorldWatchCycleInput): Promise<RunWorldWatchCycleResult> {
@@ -57,12 +62,18 @@ export async function runWorldWatchCycle(input: RunWorldWatchCycleInput): Promis
 
   const successfulSources = sourceResults.filter((result) => result.success).length;
   let snapshotTime: string | undefined;
+  let snapshotRowsWritten = 0;
+  let alertsGenerated = 0;
+  let regionsScored = 0;
 
   if (successfulSources > 0) {
     const snapshotStarted = new Date();
     try {
       const snapshotResult = await runScoringSnapshotJob(input.db, input.snapshotTime ?? new Date());
       snapshotTime = snapshotResult.snapshotTime;
+      snapshotRowsWritten = snapshotResult.regionsProcessed;
+      alertsGenerated = snapshotResult.alertsInserted;
+      regionsScored = snapshotResult.regionsProcessed;
       jobs.push({
         jobName: 'scoring_snapshot',
         success: true,
@@ -104,7 +115,8 @@ export async function runWorldWatchCycle(input: RunWorldWatchCycleInput): Promis
   const hasSuccess = jobs.some((job) => job.success);
   const status: CycleStatus = hasSuccess ? (hasFailures ? 'partial' : 'success') : 'failed';
   const finishedAt = new Date();
-  const recordsProcessed = jobs.reduce((sum, job) => sum + job.recordsProcessed, 0);
+  const sourceRecordsProcessed = Object.fromEntries(sourceResults.map((job) => [job.jobName, job.recordsProcessed]));
+  const totalRecordsProcessed = sourceResults.reduce((sum, job) => sum + job.recordsProcessed, 0);
 
   await insertJobRun(input.db, {
     jobName: 'worldwatch_cycle',
@@ -112,12 +124,17 @@ export async function runWorldWatchCycle(input: RunWorldWatchCycleInput): Promis
     status,
     startedAt,
     finishedAt,
-    recordsProcessed,
+    recordsProcessed: totalRecordsProcessed,
     errorMessage: status === 'failed' ? 'All source jobs failed. Snapshot was skipped.' : undefined,
     metadata: {
       successfulJobs: jobs.filter((job) => job.success).map((job) => job.jobName),
       failedJobs: jobs.filter((job) => !job.success).map((job) => ({ name: job.jobName, error: job.errorMessage })),
       snapshotTime,
+      sourceRecordsProcessed,
+      totalRecordsProcessed,
+      snapshotRowsWritten,
+      alertsGenerated,
+      regionsScored,
     },
   });
 
@@ -127,7 +144,7 @@ export async function runWorldWatchCycle(input: RunWorldWatchCycleInput): Promis
     job_type: 'cycle',
     status,
     duration_ms: finishedAt.getTime() - startedAt.getTime(),
-    records_processed: recordsProcessed,
+    records_processed: totalRecordsProcessed,
     started_at: startedAt.toISOString(),
     finished_at: finishedAt.toISOString(),
   });
@@ -139,6 +156,11 @@ export async function runWorldWatchCycle(input: RunWorldWatchCycleInput): Promis
     durationMs: finishedAt.getTime() - startedAt.getTime(),
     jobs,
     snapshotTime,
+    totalRecordsProcessed,
+    sourceRecordsProcessed,
+    snapshotRowsWritten,
+    alertsGenerated,
+    regionsScored,
   };
 }
 

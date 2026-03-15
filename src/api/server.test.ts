@@ -119,3 +119,77 @@ test('server exposes ops summary response shape', async () => {
 
   await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
 });
+
+test('ops console data endpoints are fetch-compatible for the console', async () => {
+  const db: QueryableDb = {
+    async query<T>(sql: string) {
+      if (sql.includes('FROM data_sources ds')) return { rows: [] as T[] };
+      if (sql.includes("WHERE status IN ('failed', 'partial')")) return { rows: [] as T[] };
+      if (sql.includes("WHERE job_type = 'cycle'")) return { rows: [] as T[] };
+      return { rows: [] as T[] };
+    },
+  };
+  const server = createWorldWatchApiServer(db);
+
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  if (!address) throw new Error('Server address unavailable');
+
+  const endpoints = [
+    '/api/ops/summary',
+    '/api/ops/cycle/latest',
+    '/api/ops/source-freshness',
+    '/api/ops/failures',
+    '/api/regions',
+    '/api/feed',
+  ];
+
+  for (const endpoint of endpoints) {
+    const response = await fetch(`http://127.0.0.1:${address.port}${endpoint}`);
+    assert.ok(response.status === 200 || response.status === 404);
+    await response.json();
+  }
+
+  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+});
+
+test('manual cycle trigger rejects overlap while run is in-flight', async () => {
+  const db: QueryableDb = { query: async <T>() => ({ rows: [] as T[] }) };
+
+  let releaseRun: () => void = () => {};
+  const server = createWorldWatchApiServer(db, {
+    runCycle: async () => {
+      await new Promise<void>((resolve) => {
+        releaseRun = resolve;
+      });
+      return {
+        status: 'success',
+        startedAt: new Date().toISOString(),
+        finishedAt: new Date().toISOString(),
+        durationMs: 1,
+        jobs: [],
+        totalRecordsProcessed: 1,
+        sourceRecordsProcessed: { acled: 1 },
+        snapshotRowsWritten: 1,
+        alertsGenerated: 0,
+        regionsScored: 1,
+      };
+    },
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  if (!address) throw new Error('Server address unavailable');
+
+  const firstRequest = fetch(`http://127.0.0.1:${address.port}/api/ops/cycle/run`, { method: 'POST' });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+
+  const overlap = await fetch(`http://127.0.0.1:${address.port}/api/ops/cycle/run`, { method: 'POST' });
+  assert.equal(overlap.status, 409);
+
+  releaseRun();
+  const firstResponse = await firstRequest;
+  assert.equal(firstResponse.status, 200);
+
+  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+});

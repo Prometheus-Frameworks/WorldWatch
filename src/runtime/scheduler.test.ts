@@ -35,6 +35,11 @@ test('scheduler prevents overlapping runs', async () => {
         finishedAt: new Date().toISOString(),
         durationMs: 1,
         jobs: [],
+        totalRecordsProcessed: 0,
+        sourceRecordsProcessed: {},
+        snapshotRowsWritten: 0,
+        alertsGenerated: 0,
+        regionsScored: 0,
       };
     },
   });
@@ -78,6 +83,11 @@ test('scheduler handles cycle failure and continues running', async () => {
         finishedAt: new Date().toISOString(),
         durationMs: 1,
         jobs: [],
+        totalRecordsProcessed: 0,
+        sourceRecordsProcessed: {},
+        snapshotRowsWritten: 0,
+        alertsGenerated: 0,
+        regionsScored: 0,
       };
     },
   });

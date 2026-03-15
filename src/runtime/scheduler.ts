@@ -6,6 +6,11 @@ export interface CycleRunnerResult {
   finishedAt: string;
   durationMs: number;
   jobs: Array<{ jobName: string; success: boolean }>;
+  totalRecordsProcessed: number;
+  sourceRecordsProcessed: Record<string, number>;
+  snapshotRowsWritten: number;
+  alertsGenerated: number;
+  regionsScored: number;
 }
 
 export interface SchedulerDependencies {
@@ -48,7 +53,11 @@ export function createCycleScheduler(dependencies: SchedulerDependencies): Sched
           job_type: 'cycle',
           status: result.status,
           duration_ms: result.durationMs,
-          records_processed: result.jobs.length,
+          records_processed: result.totalRecordsProcessed,
+          source_records_processed: result.sourceRecordsProcessed,
+          snapshot_rows_written: result.snapshotRowsWritten,
+          alerts_generated: result.alertsGenerated,
+          regions_scored: result.regionsScored,
           started_at: result.startedAt,
           finished_at: result.finishedAt,
         });

@@ -66,5 +66,16 @@ test('runWorldWatchCycle continues on source failure and still snapshots', async
   assert.equal(Boolean(result.snapshotTime), true);
   assert.equal(result.jobs.some((job) => job.jobName === 'gdelt' && !job.success), true);
   assert.equal(result.jobs.some((job) => job.jobName === 'scoring_snapshot' && job.success), true);
+
+  assert.equal(result.totalRecordsProcessed, 3);
+  assert.deepEqual(result.sourceRecordsProcessed, {
+    acled: 1,
+    gdelt: 0,
+    imf_portwatch: 1,
+    eia: 1,
+  });
+  assert.equal(result.snapshotRowsWritten, 1);
+  assert.equal(result.alertsGenerated, 0);
+  assert.equal(result.regionsScored, 1);
   assert.equal(jobRunInserts.length >= 5, true);
 });
