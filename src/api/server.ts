@@ -21,7 +21,7 @@ import {
 import { renderAnalystConsole } from '../console/renderAnalystConsole.ts';
 import { renderOpsConsole } from '../console/renderOpsConsole.ts';
 import { renderPolicyPage } from '../console/renderPolicyPage.ts';
-import { getDeploymentPostureConfig, type DeploymentPostureConfig } from '../console/posture.ts';
+import { getDeploymentPostureConfig, isReadOnlyPosture, type DeploymentPostureConfig } from '../console/posture.ts';
 
 export interface ApiCycleControl {
   runCycle: () => Promise<RunWorldWatchCycleResult>;
@@ -93,6 +93,14 @@ async function routeRequest(
   }
 
   if (method === 'POST' && path === '/api/ops/cycle/run') {
+    if (isReadOnlyPosture(posture)) {
+      sendJson(res, 403, {
+        error: 'posture_read_only',
+        message: 'Manual cycle trigger is disabled in public_read_only posture.',
+      });
+      return;
+    }
+
     try {
       const result = await cycleHandlers.runManualCycle();
       sendJson(res, 200, { state: 'completed', cycle: result });

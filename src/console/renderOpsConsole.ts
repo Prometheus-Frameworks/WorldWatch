@@ -1,9 +1,15 @@
 import { getOpsConsoleClientScript } from './client.ts';
 import type { DeploymentPostureConfig } from './posture.ts';
-import { renderPostureBannerHtml } from './posture.ts';
+import { isReadOnlyPosture, renderPostureBannerHtml } from './posture.ts';
 import { renderPolicyFooterHtml } from './policy.ts';
 
 export function renderOpsConsole(posture: DeploymentPostureConfig): string {
+  const manualTriggerDisabled = isReadOnlyPosture(posture);
+  const triggerButtonAttrs = manualTriggerDisabled ? 'disabled aria-disabled="true"' : '';
+  const triggerNotice = manualTriggerDisabled
+    ? '<p class="posture-note" id="posture-note">Manual cycle trigger is disabled in public_read_only posture.</p>'
+    : '';
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -26,6 +32,7 @@ export function renderOpsConsole(posture: DeploymentPostureConfig): string {
     .posture-title { font-size: 12px; color: #b6cae3; text-transform: uppercase; letter-spacing: 0.04em; }
     .posture-copy { font-size: 13px; }
     .policy-footer { margin-top: 16px; border-top: 1px solid #333; padding-top: 10px; color: #b2b2b2; font-size: 12px; }
+    .posture-note { color: #f0cf83; font-size: 12px; margin: 0 0 12px; }
   </style>
 </head>
 <body>
@@ -34,8 +41,9 @@ export function renderOpsConsole(posture: DeploymentPostureConfig): string {
   <h1>WorldWatch Internal Ops Console</h1>
   <p><a href="/">Open analyst world-state dashboard →</a></p>
   <p><a href="/about">Open About / Usage / Terms →</a></p>
-  <button id="trigger">Run Cycle</button>
+  <button id="trigger" data-manual-trigger-disabled="${manualTriggerDisabled}" ${triggerButtonAttrs}>Run Cycle</button>
   <span id="trigger-status"></span>
+  ${triggerNotice}
 
   <div class="grid">
     <section class="card">
