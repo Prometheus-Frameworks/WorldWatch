@@ -9,6 +9,8 @@ export interface RuntimeConfig {
     gdelt: SourceEndpointConfig;
     imfPortWatch: SourceEndpointConfig;
     eia: SourceEndpointConfig;
+    unhcr: SourceEndpointConfig;
+    nasaFirms: SourceEndpointConfig;
   };
 }
 
@@ -22,6 +24,8 @@ export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runtime
       gdelt: buildSourceConfig(env, 'GDELT_URL'),
       imfPortWatch: buildSourceConfig(env, 'IMF_PORTWATCH_URL'),
       eia: buildSourceConfig(env, 'EIA_URL'),
+      unhcr: buildSourceConfig(env, 'UNHCR_URL'),
+      nasaFirms: buildSourceConfig(env, 'NASA_FIRMS_URL'),
     },
   };
 }
@@ -34,6 +38,8 @@ export function loadCycleInputFromEnv(env: NodeJS.ProcessEnv, db: RunWorldWatchC
     gdelt: config.sources.gdelt,
     imfPortWatch: config.sources.imfPortWatch,
     eia: config.sources.eia,
+    unhcr: config.sources.unhcr,
+    nasaFirms: config.sources.nasaFirms,
   };
 }
 

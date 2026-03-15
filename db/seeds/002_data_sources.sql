@@ -3,7 +3,9 @@ VALUES
   ('acled', 1440, 0.900),
   ('gdelt', 360, 0.650),
   ('imf-portwatch', 720, 0.800),
-  ('eia', 1440, 0.850)
+  ('eia', 1440, 0.850),
+  ('unhcr', 720, 0.880),
+  ('nasa-firms', 360, 0.700)
 ON CONFLICT (name) DO UPDATE
 SET freshness_minutes = EXCLUDED.freshness_minutes,
     reliability_weight = EXCLUDED.reliability_weight,

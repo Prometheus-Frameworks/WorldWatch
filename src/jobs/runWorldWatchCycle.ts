@@ -6,6 +6,8 @@ import { runAcledSourceJob } from './sourceRunners/runAcledSourceJob.ts';
 import { runEiaSourceJob } from './sourceRunners/runEiaSourceJob.ts';
 import { runGdeltSourceJob } from './sourceRunners/runGdeltSourceJob.ts';
 import { runImfPortWatchSourceJob } from './sourceRunners/runImfPortWatchSourceJob.ts';
+import { runNasaFirmsSourceJob } from './sourceRunners/runNasaFirmsSourceJob.ts';
+import { runUnhcrSourceJob } from './sourceRunners/runUnhcrSourceJob.ts';
 import type { JsonFetcher, SourceJobResult } from './sourceRunners/types.ts';
 
 const logger = createLogger('cycle-runner');
@@ -26,6 +28,8 @@ export interface RunWorldWatchCycleInput {
   gdelt: SourceEndpointConfig;
   imfPortWatch: SourceEndpointConfig;
   eia: SourceEndpointConfig;
+  unhcr: SourceEndpointConfig;
+  nasaFirms: SourceEndpointConfig;
 }
 
 export interface CycleJobResult {
@@ -181,6 +185,14 @@ async function runSourceJobs(input: RunWorldWatchCycleInput): Promise<CycleJobRe
     {
       jobName: 'eia',
       runner: () => runEiaSourceJob({ db: input.db, url: input.eia.url, headers: input.eia.headers, fetchedAt: input.fetchedAt, fetchJson: input.fetchJson }),
+    },
+    {
+      jobName: 'unhcr',
+      runner: () => runUnhcrSourceJob({ db: input.db, url: input.unhcr.url, headers: input.unhcr.headers, fetchedAt: input.fetchedAt, fetchJson: input.fetchJson }),
+    },
+    {
+      jobName: 'nasa_firms',
+      runner: () => runNasaFirmsSourceJob({ db: input.db, url: input.nasaFirms.url, headers: input.nasaFirms.headers, fetchedAt: input.fetchedAt, fetchJson: input.fetchJson }),
     },
   ];
 

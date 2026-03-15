@@ -9,6 +9,10 @@ export const NORMALIZED_SIGNAL_TYPES = {
   CHOKEPOINT_TRANSIT_VOLUME: 'chokepoint.transit_volume',
   OIL_PRICE_USD: 'oil.price_usd',
   OIL_PRICE_VOLATILITY: 'oil.price_volatility',
+  DISPLACEMENT_DELTA: 'displacement.delta',
+  DISPLACEMENT_ACCELERATION: 'displacement.acceleration',
+  THERMAL_ANOMALY_COUNT: 'thermal.anomaly_count',
+  FIRE_ACTIVITY_INDEX: 'thermal.fire_activity_index',
 } as const;
 
 export type NormalizedSignalType =
@@ -23,7 +27,7 @@ export interface NormalizedSignalDefinition {
     | 'oilShockRisk'
     | 'displacementAcceleration'
     | 'narrativeHeat';
-  preferredSources: ReadonlyArray<'acled' | 'gdelt' | 'imf-portwatch' | 'eia'>;
+  preferredSources: ReadonlyArray<'acled' | 'gdelt' | 'imf-portwatch' | 'eia' | 'unhcr' | 'nasa-firms'>;
 }
 
 export const NORMALIZED_SIGNAL_DEFINITIONS: ReadonlyArray<NormalizedSignalDefinition> = [
@@ -86,5 +90,29 @@ export const NORMALIZED_SIGNAL_DEFINITIONS: ReadonlyArray<NormalizedSignalDefini
     unit: 'index',
     domain: 'oilShockRisk',
     preferredSources: ['eia'],
+  },
+  {
+    type: NORMALIZED_SIGNAL_TYPES.DISPLACEMENT_DELTA,
+    unit: 'people',
+    domain: 'displacementAcceleration',
+    preferredSources: ['unhcr'],
+  },
+  {
+    type: NORMALIZED_SIGNAL_TYPES.DISPLACEMENT_ACCELERATION,
+    unit: 'index',
+    domain: 'displacementAcceleration',
+    preferredSources: ['unhcr'],
+  },
+  {
+    type: NORMALIZED_SIGNAL_TYPES.THERMAL_ANOMALY_COUNT,
+    unit: 'detections',
+    domain: 'chokepointStress',
+    preferredSources: ['nasa-firms'],
+  },
+  {
+    type: NORMALIZED_SIGNAL_TYPES.FIRE_ACTIVITY_INDEX,
+    unit: 'index',
+    domain: 'conflictPressure',
+    preferredSources: ['nasa-firms'],
   },
 ];

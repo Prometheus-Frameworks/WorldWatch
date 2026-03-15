@@ -28,3 +28,17 @@ test('resolveRegionIds falls back to proximity mapping when point does not inter
   assert.deepEqual(regionIds, [42]);
   assert.equal(sqlCalls.some((sql) => sql.includes('ST_DWithin')), true);
 });
+
+test('resolveRegionIds maps by region hint when geometry coordinates are not available', async () => {
+  const db: QueryableDb = {
+    async query<T>(sql: string): Promise<{ rows: T[] }> {
+      if (sql.includes('SELECT id FROM regions WHERE lower(slug)')) {
+        return { rows: [{ id: 77 }] as T[] };
+      }
+      return { rows: [] as T[] };
+    },
+  };
+
+  const regionIds = await resolveRegionIds(db, { regionHint: 'Sudan' });
+  assert.deepEqual(regionIds, [77]);
+});
