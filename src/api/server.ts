@@ -4,6 +4,7 @@ import { URL } from 'node:url';
 import type { QueryableDb } from '../ingestion/types.ts';
 import type { RunWorldWatchCycleResult } from '../jobs/runWorldWatchCycle.ts';
 import {
+  getAnalystSummary,
   getFeed,
   getLatestCycleStatus,
   getOpsHealth,
@@ -111,6 +112,11 @@ async function routeRequest(
     return;
   }
 
+  if (path === '/api/analyst/summary') {
+    sendJson(res, 200, await getAnalystSummary(db));
+    return;
+  }
+
   if (path === '/api/ops/health') {
     sendJson(res, 200, await getOpsHealth(db));
     return;
@@ -197,4 +203,3 @@ function sendHtml(res: ServerResponse, statusCode: number, html: string): void {
   res.setHeader('content-length', Buffer.byteLength(html));
   res.end(html);
 }
-

@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import type { QueryableDb } from '../ingestion/types.ts';
 import {
+  getAnalystSummary,
   getLatestCycleStatus,
   getOpsHealth,
   getRecentCycleRuns,
@@ -252,4 +253,51 @@ test('getRecentSourceRuns extracts source-run metrics from metadata', async () =
     inserted_signals: 9,
     error_message: 'timeout',
   });
+});
+
+
+test('getAnalystSummary returns card and mover aggregates for dashboard', async () => {
+  const db: QueryableDb = {
+    async query<T>() {
+      return {
+        rows: [
+          {
+            slug: 'levant',
+            name: 'Levant',
+            type: 'cluster',
+            composite_score: 82,
+            status_band: 'high',
+            confidence_band: 'low',
+            freshness_state: 'stale',
+            evidence_state: 'partial',
+            snapshot_time: '2026-01-01T00:00:00Z',
+            delta_24h: 9,
+            delta_7d: 18,
+          },
+          {
+            slug: 'horn-africa',
+            name: 'Horn of Africa',
+            type: 'cluster',
+            composite_score: 70,
+            status_band: 'high',
+            confidence_band: 'high',
+            freshness_state: 'fresh',
+            evidence_state: 'confirmed',
+            snapshot_time: '2026-01-01T00:00:00Z',
+            delta_24h: -12,
+            delta_7d: 4,
+          },
+        ] as T[],
+      };
+    },
+  };
+
+  const summary = await getAnalystSummary(db);
+  assert.equal(summary.cards.hottest_region?.slug, 'levant');
+  assert.equal(summary.cards.biggest_24h_mover?.slug, 'horn-africa');
+  assert.equal(summary.cards.biggest_7d_mover?.slug, 'levant');
+  assert.equal(summary.cards.stale_high_risk_count, 1);
+  assert.equal(summary.cards.high_score_low_confidence_count, 1);
+  assert.equal(summary.top_movers.by_24h.length, 2);
+  assert.equal(summary.top_movers.by_7d.length, 2);
 });

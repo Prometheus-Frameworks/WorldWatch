@@ -18,6 +18,15 @@ export function renderAnalystConsole(): string {
     .feed-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
     .feed-card { border: 1px solid #3a465d; border-radius: 6px; padding: 10px; background: #111722; }
     .controls { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .controls-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+    .summary-grid { display: grid; grid-template-columns: repeat(5, minmax(160px, 1fr)); gap: 8px; margin-bottom: 12px; }
+    .summary-card { border: 1px solid #33445c; border-radius: 6px; padding: 8px; background: #141c28; }
+    .summary-card p { margin: 2px 0; font-size: 12px; }
+    .summary-label { color: #9eb7d8; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .summary-value { font-size: 14px; font-weight: 600; }
+    .hint { color: #9ca8b7; font-size: 12px; }
+    .filter-grid { display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 8px; }
+    .filter-grid label { font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
     table { width: 100%; border-collapse: collapse; }
     th, td { border: 1px solid #2f3b4d; padding: 6px; text-align: left; font-size: 12px; }
     th { background: #0f141d; }
@@ -41,18 +50,43 @@ export function renderAnalystConsole(): string {
   <div class="grid">
     <section class="card">
       <h2>Region dashboard</h2>
-      <div class="controls">
-        <label for="region-sort">Sort by</label>
-        <select id="region-sort">
-          <option value="composite_score">Composite score</option>
-          <option value="delta_24h">24h delta</option>
-          <option value="delta_7d">7d delta</option>
-        </select>
-        <select id="region-sort-direction">
-          <option value="desc">Descending</option>
-          <option value="asc">Ascending</option>
-        </select>
+      <div id="summary-cards" class="summary-grid"></div>
+
+      <div class="controls-wrap">
+        <div class="controls">
+          <label for="region-sort">Sort by</label>
+          <select id="region-sort">
+            <option value="composite_score">Composite score</option>
+            <option value="delta_24h">24h delta</option>
+            <option value="delta_7d">7d delta</option>
+          </select>
+          <select id="region-sort-direction">
+            <option value="desc">Descending</option>
+            <option value="asc">Ascending</option>
+          </select>
+        </div>
+        <div class="controls">
+          <label for="region-search">Search</label>
+          <input id="region-search" placeholder="Region name" />
+          <label><input type="checkbox" id="top-movers-only" /> Top movers only</label>
+        </div>
       </div>
+
+      <div class="filter-grid">
+        <label>Status band
+          <select id="filter-status-band"><option value="all">All</option></select>
+        </label>
+        <label>Confidence band
+          <select id="filter-confidence-band"><option value="all">All</option></select>
+        </label>
+        <label>Freshness state
+          <select id="filter-freshness-state"><option value="all">All</option></select>
+        </label>
+        <label>Evidence state
+          <select id="filter-evidence-state"><option value="all">All</option></select>
+        </label>
+      </div>
+      <p class="hint">Rows can be filtered by status/confidence/freshness/evidence, top movers, and region search.</p>
       <table id="regions-table"></table>
     </section>
 
