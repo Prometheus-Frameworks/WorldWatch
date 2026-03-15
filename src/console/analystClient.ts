@@ -2,13 +2,23 @@ export function getAnalystConsoleClientScript(): string {
   return String.raw`
     const endpointMap = {
       regions: '/api/regions',
+      regionsGeo: '/api/regions/geo',
       feed: '/api/feed',
       analystSummary: '/api/analyst/summary',
       regionDetail: (slug) => '/api/regions/' + encodeURIComponent(slug),
     };
 
     const timeFmt = new Intl.DateTimeFormat('en', { dateStyle: 'short', timeStyle: 'medium' });
+    const STATUS_COLORS = {
+      low: '#2e7d32',
+      elevated: '#c77800',
+      high: '#d84343',
+      critical: '#9c27b0',
+      unknown: '#607d8b',
+    };
+
     let regions = [];
+    let geoRegions = [];
     let activeRegionSlug = null;
     let lastDetailSnapshotByRegion = new Map();
     let topMoverSlugs = new Set();
@@ -88,6 +98,11 @@ export function getAnalystConsoleClientScript(): string {
         if (left === right) return String(a.slug).localeCompare(String(b.slug));
         return (left - right) * dir;
       });
+    }
+
+    function getFilteredSortedRegions() {
+      const filtered = filterRegions(Array.isArray(regions) ? regions : []);
+      return sortRegions(filtered);
     }
 
     function renderRegionsTable(allRows) {
@@ -172,6 +187,7 @@ export function getAnalystConsoleClientScript(): string {
 
     function renderHistoryTable(id, rows, columns) {
       const table = document.getElementById(id);
+      if (!(table instanceof HTMLTableElement)) return;
       if (!Array.isArray(rows) || rows.length === 0) {
         table.innerHTML = '<tr><td>No history available</td></tr>';
         return;
@@ -190,6 +206,7 @@ export function getAnalystConsoleClientScript(): string {
 
     function renderDetail(detail) {
       const container = document.getElementById('region-detail');
+      if (!(container instanceof HTMLElement)) return;
       if (!detail || !detail.latest_score) {
         container.innerHTML = '<p>Select a region to inspect score composition and history.</p>';
         return;
@@ -261,6 +278,130 @@ export function getAnalystConsoleClientScript(): string {
       container.hidden = false;
     }
 
+    function getBoundsFromGeometry(geometryRows) {
+      let minLon = Infinity;
+      let minLat = Infinity;
+      let maxLon = -Infinity;
+      let maxLat = -Infinity;
+
+      for (const row of geometryRows) {
+        const coordinates = row?.geometry?.coordinates;
+        if (!Array.isArray(coordinates)) continue;
+        const stack = [...coordinates];
+        while (stack.length > 0) {
+          const current = stack.pop();
+          if (!Array.isArray(current)) continue;
+          if (current.length >= 2 && typeof current[0] === 'number' && typeof current[1] === 'number') {
+            const [lon, lat] = current;
+            minLon = Math.min(minLon, lon);
+            minLat = Math.min(minLat, lat);
+            maxLon = Math.max(maxLon, lon);
+            maxLat = Math.max(maxLat, lat);
+          } else {
+            for (const item of current) stack.push(item);
+          }
+        }
+      }
+
+      if (!Number.isFinite(minLon) || !Number.isFinite(minLat) || !Number.isFinite(maxLon) || !Number.isFinite(maxLat)) {
+        return { minLon: -180, minLat: -90, maxLon: 180, maxLat: 90 };
+      }
+
+      return { minLon, minLat, maxLon, maxLat };
+    }
+
+    function projectCoordinate(lon, lat, bounds) {
+      const width = 960;
+      const height = 480;
+      const lonSpan = Math.max(bounds.maxLon - bounds.minLon, 1);
+      const latSpan = Math.max(bounds.maxLat - bounds.minLat, 1);
+      const x = ((lon - bounds.minLon) / lonSpan) * width;
+      const y = height - ((lat - bounds.minLat) / latSpan) * height;
+      return [x, y];
+    }
+
+    function geometryToPathD(geometry, bounds) {
+      if (!geometry || !Array.isArray(geometry.coordinates)) return '';
+      const type = geometry.type;
+      const polygons = type === 'Polygon'
+        ? [geometry.coordinates]
+        : (type === 'MultiPolygon' ? geometry.coordinates : []);
+      const segments = [];
+
+      for (const polygon of polygons) {
+        if (!Array.isArray(polygon)) continue;
+        for (const ring of polygon) {
+          if (!Array.isArray(ring) || ring.length === 0) continue;
+          let segment = '';
+          for (let i = 0; i < ring.length; i += 1) {
+            const point = ring[i];
+            if (!Array.isArray(point) || point.length < 2) continue;
+            const [x, y] = projectCoordinate(Number(point[0]), Number(point[1]), bounds);
+            segment += (i === 0 ? 'M' : 'L') + x.toFixed(2) + ' ' + y.toFixed(2) + ' ';
+          }
+          if (segment) {
+            segments.push(segment + 'Z');
+          }
+        }
+      }
+
+      return segments.join(' ');
+    }
+
+    function renderMapLegend() {
+      const legend = document.getElementById('map-legend');
+      if (!(legend instanceof HTMLElement)) return;
+      const levels = ['critical', 'high', 'elevated', 'low'];
+      legend.innerHTML = levels
+        .map((level) => '<span><span class="map-dot" style="background:' + (STATUS_COLORS[level] ?? STATUS_COLORS.unknown) + '"></span>' + level + '</span>')
+        .join('');
+    }
+
+    function renderMap() {
+      const map = document.getElementById('analyst-map');
+      if (!(map instanceof SVGElement)) return;
+      const sortedVisibleRows = getFilteredSortedRegions();
+      const visibleSlugs = new Set(sortedVisibleRows.map((row) => row.slug));
+      const visibleGeo = geoRegions.filter((row) => visibleSlugs.has(row.slug));
+      if (visibleGeo.length === 0) {
+        map.innerHTML = '';
+        return;
+      }
+
+      const bounds = getBoundsFromGeometry(visibleGeo);
+      const paths = visibleGeo.map((row) => {
+        const isActive = row.slug === activeRegionSlug;
+        const stroke = isActive ? '#e7f2ff' : '#1a2435';
+        const strokeWidth = isActive ? 2 : 1;
+        const fill = STATUS_COLORS[row.status_band] ?? STATUS_COLORS.unknown;
+        const pathD = geometryToPathD(row.geometry, bounds);
+        const title = row.name + ' · score ' + formatNum(Number(row.composite_score), 1) + ' · Δ24h ' + formatNum(Number(row.delta_24h), 1);
+        return '<path class="map-region" data-region="' + row.slug + '" d="' + pathD + '" fill="' + fill + '" fill-opacity="0.75" stroke="' + stroke + '" stroke-width="' + strokeWidth + '" cursor="pointer"><title>' + title + '</title></path>';
+      }).join('');
+
+      map.innerHTML = paths;
+    }
+
+    function syncRegionViews() {
+      renderRegionsTable(regions);
+      renderMap();
+    }
+
+    function applyLayout() {
+      const mode = getSelectValue('analyst-layout');
+      const primaryPanel = document.getElementById('primary-panel-layout');
+      const mapCard = document.getElementById('analyst-map-card');
+      if (!(primaryPanel instanceof HTMLElement) || !(mapCard instanceof HTMLElement)) return;
+
+      if (mode === 'split') {
+        primaryPanel.classList.add('split');
+        mapCard.classList.remove('map-hidden');
+      } else {
+        primaryPanel.classList.remove('split');
+        mapCard.classList.add('map-hidden');
+      }
+    }
+
     async function fetchJson(url, fallback) {
       const response = await fetch(url);
       if (!response.ok) {
@@ -276,21 +417,25 @@ export function getAnalystConsoleClientScript(): string {
     }
 
     async function loadDashboard() {
-      const [regionsPayload, feedPayload, summaryPayload] = await Promise.all([
+      const [regionsPayload, geoPayload, feedPayload, summaryPayload] = await Promise.all([
         fetchJson(endpointMap.regions, []),
+        fetchJson(endpointMap.regionsGeo, []),
         fetchJson(endpointMap.feed, []),
         fetchJson(endpointMap.analystSummary, null),
       ]);
       const previousActiveSnapshot = activeRegionSlug ? lastDetailSnapshotByRegion.get(activeRegionSlug) : null;
 
       regions = Array.isArray(regionsPayload) ? regionsPayload : [];
+      geoRegions = Array.isArray(geoPayload) ? geoPayload : [];
       populateFilterOptions(regions);
       renderSummaryCards(summaryPayload);
-      renderRegionsTable(regions);
+      syncRegionViews();
       renderFeed(feedPayload);
+      renderMapLegend();
 
       if (!activeRegionSlug && regions.length > 0) {
         activeRegionSlug = regions[0].slug;
+        syncRegionViews();
       }
 
       if (activeRegionSlug) {
@@ -310,7 +455,7 @@ export function getAnalystConsoleClientScript(): string {
 
     async function loadRegion(slug, forceRefresh) {
       activeRegionSlug = slug;
-      renderRegionsTable(regions);
+      syncRegionViews();
       const newestSnapshot = latestSnapshotFor(slug);
       if (!forceRefresh && lastDetailSnapshotByRegion.get(slug) === newestSnapshot) {
         return;
@@ -321,25 +466,28 @@ export function getAnalystConsoleClientScript(): string {
       lastDetailSnapshotByRegion.set(slug, newestSnapshot ?? detail?.latest_score?.snapshot_time ?? null);
     }
 
-    document.getElementById('region-sort').addEventListener('change', () => renderRegionsTable(regions));
-    document.getElementById('region-sort-direction').addEventListener('change', () => renderRegionsTable(regions));
-    document.getElementById('region-search').addEventListener('input', () => renderRegionsTable(regions));
-    document.getElementById('top-movers-only').addEventListener('change', () => renderRegionsTable(regions));
-    document.getElementById('filter-status-band').addEventListener('change', () => renderRegionsTable(regions));
-    document.getElementById('filter-confidence-band').addEventListener('change', () => renderRegionsTable(regions));
-    document.getElementById('filter-freshness-state').addEventListener('change', () => renderRegionsTable(regions));
-    document.getElementById('filter-evidence-state').addEventListener('change', () => renderRegionsTable(regions));
+    document.getElementById('region-sort').addEventListener('change', () => syncRegionViews());
+    document.getElementById('region-sort-direction').addEventListener('change', () => syncRegionViews());
+    document.getElementById('region-search').addEventListener('input', () => syncRegionViews());
+    document.getElementById('top-movers-only').addEventListener('change', () => syncRegionViews());
+    document.getElementById('filter-status-band').addEventListener('change', () => syncRegionViews());
+    document.getElementById('filter-confidence-band').addEventListener('change', () => syncRegionViews());
+    document.getElementById('filter-freshness-state').addEventListener('change', () => syncRegionViews());
+    document.getElementById('filter-evidence-state').addEventListener('change', () => syncRegionViews());
+    document.getElementById('analyst-layout').addEventListener('change', () => applyLayout());
 
     document.body.addEventListener('click', (event) => {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
-      if (!target.classList.contains('region-link')) return;
-      const slug = target.getAttribute('data-region');
+      const regionNode = target.closest('[data-region]');
+      if (!(regionNode instanceof HTMLElement)) return;
+      const slug = regionNode.getAttribute('data-region');
       if (!slug) return;
       event.preventDefault();
       void loadRegion(slug, true);
     });
 
+    applyLayout();
     void loadDashboard();
     setInterval(() => {
       void loadDashboard();

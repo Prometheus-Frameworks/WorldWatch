@@ -210,6 +210,10 @@ test('server serves analyst dashboard at root and ops at /ops', async () => {
   assert.equal(analystResponse.status, 200);
   const analystHtml = await (analystResponse as unknown as { text: () => Promise<string> }).text();
   assert.ok(analystHtml.includes('WorldWatch Analyst Dashboard'));
+  assert.ok(analystHtml.includes('id="analyst-layout"'));
+  assert.ok(analystHtml.includes('id="analyst-map"'));
+  assert.ok(analystHtml.includes("regionsGeo: '/api/regions/geo'"));
+  assert.ok(analystHtml.includes("target.closest('[data-region]')"));
 
   const opsResponse = await fetch(`http://127.0.0.1:${address.port}/ops`);
   assert.equal(opsResponse.status, 200);
@@ -307,6 +311,46 @@ test('ops history endpoints return dashboard-shaped rows', async () => {
 });
 
 
+
+
+test('server exposes analyst geo endpoint shape for internal map rendering', async () => {
+  const db: QueryableDb = {
+    async query<T>(sql: string) {
+      if (sql.includes('ST_AsGeoJSON')) {
+        return {
+          rows: [{
+            slug: 'suez-canal',
+            name: 'Suez Canal',
+            type: 'chokepoint',
+            composite_score: 64,
+            status_band: 'high',
+            confidence_band: 'high',
+            freshness_state: 'fresh',
+            evidence_state: 'confirmed',
+            snapshot_time: '2026-01-01T00:00:00Z',
+            delta_24h: 4,
+            delta_7d: 7,
+            geometry: { type: 'Polygon', coordinates: [] },
+          }] as T[],
+        };
+      }
+      return { rows: [] as T[] };
+    },
+  };
+
+  const server = createWorldWatchApiServer(db);
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  if (!address) throw new Error('Server address unavailable');
+
+  const response = await fetch(`http://127.0.0.1:${address.port}/api/regions/geo`);
+  assert.equal(response.status, 200);
+  const payload = (await response.json()) as Array<Record<string, unknown>>;
+  assert.equal(payload[0].slug, 'suez-canal');
+  assert.equal(typeof payload[0].geometry, 'object');
+
+  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+});
 test('server exposes analyst summary endpoint', async () => {
   const db: QueryableDb = {
     async query<T>(sql: string) {

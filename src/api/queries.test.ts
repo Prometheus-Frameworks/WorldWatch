@@ -5,6 +5,7 @@ import type { QueryableDb } from '../ingestion/types.ts';
 import {
   getAnalystSummary,
   getLatestCycleStatus,
+  getRegionGeo,
   getOpsHealth,
   getRecentCycleRuns,
   getRecentFailures,
@@ -54,6 +55,47 @@ test('getRegionSummaries returns latest summary shape', async () => {
   ]);
 });
 
+
+
+test('getRegionGeo returns geometry alongside analyst summary fields', async () => {
+  const db: QueryableDb = {
+    async query<T>() {
+      return {
+        rows: [{
+          slug: 'suez-canal',
+          name: 'Suez Canal',
+          type: 'chokepoint',
+          composite_score: 55,
+          status_band: 'elevated',
+          confidence_band: 'medium',
+          freshness_state: 'fresh',
+          evidence_state: 'confirmed',
+          snapshot_time: '2026-01-01T00:00:00Z',
+          delta_24h: 2,
+          delta_7d: 5,
+          geometry: { type: 'Polygon', coordinates: [[[31.8, 29.5], [33.1, 29.5], [33.1, 31.8], [31.8, 31.8], [31.8, 29.5]]] },
+        }] as T[],
+      };
+    },
+  };
+
+  const rows = await getRegionGeo(db);
+  assert.equal(rows.length, 1);
+  assert.deepEqual(Object.keys(rows[0]), [
+    'slug',
+    'name',
+    'type',
+    'composite_score',
+    'status_band',
+    'confidence_band',
+    'freshness_state',
+    'evidence_state',
+    'snapshot_time',
+    'delta_24h',
+    'delta_7d',
+    'geometry',
+  ]);
+});
 test('getRegionDetail assembles score, deltas, recent signals and history', async () => {
   const db: QueryableDb = {
     async query<T>(sql: string) {
@@ -86,7 +128,7 @@ test('getRegionDetail assembles score, deltas, recent signals and history', asyn
 
       if (sql.includes('FROM region_scores rs')) {
         return {
-          rows: [{ snapshot_time: '2026-01-01T00:00:00Z', composite_score: 75, delta_24h: 6, delta_7d: 10 }] as T[],
+          rows: [{ snapshot_time: '2026-01-01T00:00:00Z', composite_score: 75, confidence_band: 'high', delta_24h: 6, delta_7d: 10, rank_movement: 3 }] as T[],
         };
       }
 
@@ -99,6 +141,9 @@ test('getRegionDetail assembles score, deltas, recent signals and history', asyn
   assert.equal((detail as Record<string, unknown>).latest_score !== undefined, true);
   assert.equal(Array.isArray((detail as Record<string, unknown>).recent_signals), true);
   assert.equal(Array.isArray((detail as Record<string, unknown>).history), true);
+  const history = (detail as { history: Array<Record<string, unknown>> }).history;
+  assert.equal(history[0].confidence_band, 'high');
+  assert.equal(history[0].rank_movement, 3);
 });
 
 test('ops queries return expected health and failure payloads', async () => {
@@ -152,6 +197,8 @@ test('ops queries return expected health and failure payloads', async () => {
             status: 'failed',
             started_at: '2026-01-01T00:00:00Z',
             finished_at: '2026-01-01T00:01:00Z',
+            duration_ms: 60000,
+            records_processed: 9,
             error_message: 'boom',
             metadata_json: {},
           }] as T[],
@@ -170,6 +217,8 @@ test('ops queries return expected health and failure payloads', async () => {
   assert.equal(latestCycle?.job_name, 'worldwatch_cycle');
   assert.equal(sourceFreshness.length, 2);
   assert.equal(failures.length, 1);
+  assert.equal(failures[0].duration_ms, 60000);
+  assert.equal(failures[0].records_processed, 9);
   assert.equal(health.status, 'degraded');
   assert.deepEqual(health.stale_sources, ['imf-portwatch']);
 });

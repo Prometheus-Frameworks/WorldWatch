@@ -14,10 +14,12 @@ export function renderAnalystConsole(): string {
     .topline { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
     .card { border: 1px solid #364153; border-radius: 6px; padding: 12px; background: #1a202a; margin-bottom: 12px; }
     .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+    .primary-panel-layout { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    .primary-panel-layout.split { grid-template-columns: 1.1fr 0.9fr; }
     .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .feed-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
     .feed-card { border: 1px solid #3a465d; border-radius: 6px; padding: 10px; background: #111722; }
-    .controls { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .controls { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
     .controls-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
     .summary-grid { display: grid; grid-template-columns: repeat(5, minmax(160px, 1fr)); gap: 8px; margin-bottom: 12px; }
     .summary-card { border: 1px solid #33445c; border-radius: 6px; padding: 8px; background: #141c28; }
@@ -36,8 +38,16 @@ export function renderAnalystConsole(): string {
     ul { margin: 8px 0; padding-left: 20px; }
     h1, h2, h3 { margin: 0 0 8px; }
     p { margin: 6px 0; }
+    .layout-toggle { margin-left: auto; }
+    .map-card { margin-bottom: 0; }
+    .map-shell { border: 1px solid #2f3b4d; border-radius: 6px; background: #0f141d; overflow: hidden; }
+    #analyst-map { width: 100%; height: 420px; display: block; }
+    .map-legend { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; color: #9ca8b7; }
+    .map-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+    .map-hidden { display: none; }
     @media (max-width: 1024px) {
-      .grid, .detail-grid { grid-template-columns: 1fr; }
+      .grid, .detail-grid, .primary-panel-layout.split, .controls-wrap { grid-template-columns: 1fr; }
+      .layout-toggle { margin-left: 0; }
     }
   </style>
 </head>
@@ -72,6 +82,14 @@ export function renderAnalystConsole(): string {
         </div>
       </div>
 
+      <div class="controls">
+        <label for="analyst-layout">Layout</label>
+        <select id="analyst-layout" class="layout-toggle">
+          <option value="table">Table-first</option>
+          <option value="split">Split (table + map)</option>
+        </select>
+      </div>
+
       <div class="filter-grid">
         <label>Status band
           <select id="filter-status-band"><option value="all">All</option></select>
@@ -87,7 +105,19 @@ export function renderAnalystConsole(): string {
         </label>
       </div>
       <p class="hint">Rows can be filtered by status/confidence/freshness/evidence, top movers, and region search.</p>
-      <table id="regions-table"></table>
+
+      <div id="primary-panel-layout" class="primary-panel-layout">
+        <div>
+          <table id="regions-table"></table>
+        </div>
+        <section id="analyst-map-card" class="card map-card map-hidden">
+          <h3>Spatial context (internal)</h3>
+          <div class="map-shell">
+            <svg id="analyst-map" viewBox="0 0 960 480" role="img" aria-label="Internal region geometry map"></svg>
+          </div>
+          <div class="map-legend" id="map-legend"></div>
+        </section>
+      </div>
     </section>
 
     <section class="card">

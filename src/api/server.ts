@@ -6,6 +6,7 @@ import type { RunWorldWatchCycleResult } from '../jobs/runWorldWatchCycle.ts';
 import {
   getAnalystSummary,
   getFeed,
+  getRegionGeo,
   getLatestCycleStatus,
   getOpsHealth,
   getOpsSummary,
@@ -109,6 +110,11 @@ async function routeRequest(
 
   if (path === '/api/feed') {
     sendJson(res, 200, await getFeed(db));
+    return;
+  }
+
+  if (path === '/api/regions/geo') {
+    sendJson(res, 200, await getRegionGeo(db));
     return;
   }
 
