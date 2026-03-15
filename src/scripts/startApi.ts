@@ -1,5 +1,6 @@
 import { createWorldWatchApiServer } from '../api/server.ts';
-import { loadRuntimeConfig } from '../runtime/config.ts';
+import { runWorldWatchCycle, type RunWorldWatchCycleResult } from '../jobs/runWorldWatchCycle.ts';
+import { loadCycleInputFromEnv, loadRuntimeConfig } from '../runtime/config.ts';
 import { createLogger } from '../runtime/logger.ts';
 import { createRuntimeDb } from '../runtime/postgres.ts';
 
@@ -8,7 +9,25 @@ const logger = createLogger('api-startup');
 async function main(): Promise<void> {
   const config = loadRuntimeConfig(process.env);
   const runtimeDb = await createRuntimeDb(config.databaseUrl);
-  const server = createWorldWatchApiServer(runtimeDb.db);
+
+  let cycleInFlight: Promise<RunWorldWatchCycleResult> | null = null;
+  const runCycleSafely = async () => {
+    if (cycleInFlight) {
+      throw new Error('cycle_overlap');
+    }
+
+    cycleInFlight = runWorldWatchCycle(loadCycleInputFromEnv(process.env, runtimeDb.db));
+    try {
+      return await cycleInFlight;
+    } finally {
+      cycleInFlight = null;
+    }
+  };
+
+  const server = createWorldWatchApiServer(runtimeDb.db, {
+    runCycle: runCycleSafely,
+    isCycleRunning: () => Boolean(cycleInFlight),
+  });
 
   const shutdown = async (): Promise<void> => {
     logger.info({ event: 'api.shutdown.start', message: 'Shutting down API server.' });
