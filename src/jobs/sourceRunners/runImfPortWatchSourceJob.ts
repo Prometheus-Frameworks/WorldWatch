@@ -2,8 +2,11 @@ import {
   ingestImfPortWatchObservations,
   type ImfPortWatchObservation,
 } from '../../ingestion/adapters/imfPortWatchAdapter.ts';
+import { createLogger } from '../../runtime/logger.ts';
 import { insertJobRun } from '../jobRunLogger.ts';
 import { defaultJsonFetcher, type SourceJobResult, type SourceRunnerContext } from './types.ts';
+
+const logger = createLogger('source-runner');
 
 interface ImfPortWatchApiResponse {
   data?: unknown[];
@@ -25,13 +28,14 @@ export async function runImfPortWatchSourceJob(
     const payload = await fetchJson(input.url, { headers: input.headers });
     const observations = normalizeImfPortWatchResponse(payload);
     const stats = await ingestImfPortWatchObservations(input.db, observations, input.fetchedAt ?? new Date());
+    const finishedAt = new Date();
 
     await insertJobRun(input.db, {
       jobName: 'imf_portwatch',
       jobType: 'source',
       status: 'success',
       startedAt,
-      finishedAt: new Date(),
+      finishedAt,
       recordsProcessed: stats.recordsProcessed,
       metadata: {
         source: 'imf_portwatch',
@@ -41,14 +45,16 @@ export async function runImfPortWatchSourceJob(
       },
     });
 
+    logger.info({ event: 'source.run.end', job_name: 'imf_portwatch', job_type: 'source', source: 'imf_portwatch', status: 'success', duration_ms: finishedAt.getTime() - startedAt.getTime(), records_processed: stats.recordsProcessed });
     return { sourceName: 'imf_portwatch', url: input.url, ...stats };
   } catch (error) {
+    const finishedAt = new Date();
     await insertJobRun(input.db, {
       jobName: 'imf_portwatch',
       jobType: 'source',
       status: 'failed',
       startedAt,
-      finishedAt: new Date(),
+      finishedAt,
       errorMessage: error instanceof Error ? error.message : String(error),
       metadata: {
         source: 'imf_portwatch',
@@ -56,6 +62,7 @@ export async function runImfPortWatchSourceJob(
       },
     });
 
+    logger.error({ event: 'source.run.end', job_name: 'imf_portwatch', job_type: 'source', source: 'imf_portwatch', status: 'failed', duration_ms: finishedAt.getTime() - startedAt.getTime(), message: error instanceof Error ? error.message : String(error) });
     throw error;
   }
 }

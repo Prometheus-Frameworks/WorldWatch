@@ -1,6 +1,9 @@
 import { ingestAcledEvents, type AcledEvent } from '../../ingestion/adapters/acledAdapter.ts';
+import { createLogger } from '../../runtime/logger.ts';
 import { insertJobRun } from '../jobRunLogger.ts';
 import { defaultJsonFetcher, type SourceJobResult, type SourceRunnerContext } from './types.ts';
+
+const logger = createLogger('source-runner');
 
 interface AcledApiResponse {
   data?: unknown[];
@@ -19,13 +22,14 @@ export async function runAcledSourceJob(input: RunAcledSourceJobInput): Promise<
     const payload = await fetchJson(input.url, { headers: input.headers });
     const events = normalizeAcledResponse(payload);
     const stats = await ingestAcledEvents(input.db, events, input.fetchedAt ?? new Date());
+    const finishedAt = new Date();
 
     await insertJobRun(input.db, {
       jobName: 'acled',
       jobType: 'source',
       status: 'success',
       startedAt,
-      finishedAt: new Date(),
+      finishedAt,
       recordsProcessed: stats.recordsProcessed,
       metadata: {
         source: 'acled',
@@ -35,19 +39,40 @@ export async function runAcledSourceJob(input: RunAcledSourceJobInput): Promise<
       },
     });
 
+    logger.info({
+      event: 'source.run.end',
+      job_name: 'acled',
+      job_type: 'source',
+      source: 'acled',
+      status: 'success',
+      duration_ms: finishedAt.getTime() - startedAt.getTime(),
+      records_processed: stats.recordsProcessed,
+    });
+
     return { sourceName: 'acled', url: input.url, ...stats };
   } catch (error) {
+    const finishedAt = new Date();
     await insertJobRun(input.db, {
       jobName: 'acled',
       jobType: 'source',
       status: 'failed',
       startedAt,
-      finishedAt: new Date(),
+      finishedAt,
       errorMessage: error instanceof Error ? error.message : String(error),
       metadata: {
         source: 'acled',
         url: input.url,
       },
+    });
+
+    logger.error({
+      event: 'source.run.end',
+      job_name: 'acled',
+      job_type: 'source',
+      source: 'acled',
+      status: 'failed',
+      duration_ms: finishedAt.getTime() - startedAt.getTime(),
+      message: error instanceof Error ? error.message : String(error),
     });
 
     throw error;
