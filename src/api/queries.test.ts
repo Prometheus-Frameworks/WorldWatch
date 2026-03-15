@@ -112,7 +112,7 @@ test('getRegionDetail assembles score, deltas, recent signals and history', asyn
             confidence_band: 'high',
             freshness_state: 'fresh',
             evidence_state: 'confirmed',
-            factors_json: [{ signalType: 'conflict.fatalities', value: 12 }],
+            factors_json: [{ signalType: 'conflict.fatalities', value: 12, normalizedValue: 82, source: 'acled', domain: 'conflictPressure', sourceReliability: 0.9, recencyMinutes: 65, movement: 'up' }],
             second_order_effects_json: [],
             snapshot_time: '2026-01-01T00:00:00Z',
             delta_24h: 6,
@@ -150,6 +150,8 @@ test('getRegionDetail assembles score, deltas, recent signals and history', asyn
   assert.equal(Array.isArray((detail as Record<string, unknown>).history), true);
   assert.equal(Array.isArray((detail as Record<string, unknown>).source_contributions), true);
   assert.equal(Array.isArray((detail as Record<string, unknown>).triage_notes), true);
+  assert.equal((detail as { explainability_summary: Record<string, string> }).explainability_summary.freshness_state, 'fresh');
+  assert.equal(Array.isArray((detail as { explainability_groups: Record<string, unknown> }).explainability_groups.top_contributing_factors as unknown[]), true);
   const history = (detail as { history: Array<Record<string, unknown>> }).history;
   assert.equal(history[0].confidence_band, 'high');
   assert.equal(history[0].rank_movement, 3);

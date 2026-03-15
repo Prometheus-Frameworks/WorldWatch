@@ -62,6 +62,9 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
     .detail-kpi { border: 1px solid #3a465d; border-radius: 999px; padding: 2px 8px; font-size: 12px; background: #111722; }
     .detail-section { border: 1px solid #2f3b4d; border-radius: 6px; padding: 8px; background: #111722; }
     .detail-section h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.03em; color: #a9c3e0; }
+    .state-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; }
+    .state-card { border: 1px solid #33445c; border-radius: 6px; padding: 8px; background: #121c2c; }
+    .state-card p { margin: 4px 0; font-size: 12px; }
     .detail-subtitle { margin: 0 0 8px; font-size: 12px; color: #8ea3bf; }
     .subscore-grid { display: grid; grid-template-columns: 1fr; gap: 7px; }
     .subscore-row { border: 1px solid #2f3b4d; border-radius: 6px; padding: 7px; background: #0f141d; }
@@ -168,13 +171,18 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
         <div id="subscores-list" class="subscore-grid"></div>
       </section>
       <section class="detail-section">
-        <h3>Latest factors</h3>
-        <p class="detail-subtitle">Newest normalized contributions used in the latest score.</p>
-        <table id="factors-table"></table>
+        <h3>Top contributing factors</h3>
+        <p class="detail-subtitle">Highest normalized contributors with provenance and movement.</p>
+        <table id="explainability-factors-table"></table>
       </section>
     </div>
 
     <div class="detail-grid">
+      <section class="detail-section">
+        <h3>Freshness / confidence / evidence</h3>
+        <p class="detail-subtitle">Deterministic state copy tied to the current payload.</p>
+        <div id="explainability-state-cards" class="state-grid"></div>
+      </section>
       <section class="detail-section">
         <h3>Second-order effects</h3>
         <p class="detail-subtitle">Potential knock-on consequences from current pressure mix.</p>
@@ -186,9 +194,11 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
         <table id="signals-table"></table>
       </section>
       <section class="detail-section">
-        <h3>Source contribution summary</h3>
-        <p class="detail-subtitle">Coverage and recency by upstream source for the selected region.</p>
-        <table id="source-contributions-table"></table>
+        <h3>Explainability groupings</h3>
+        <p class="detail-subtitle">Freshest sources, stale high-impact contributors, and mixed-signal domains.</p>
+        <table id="freshest-sources-table"></table>
+        <table id="stale-high-impact-table"></table>
+        <table id="mixed-indicators-table"></table>
       </section>
     </div>
 
