@@ -36,6 +36,7 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
     th, td { border: 1px solid #2f3b4d; padding: 6px; text-align: left; font-size: 12px; }
     th { background: #0f141d; }
     .active-row { background: #1e3148; }
+    .hover-row { background: #1a2738; }
     .pill { border: 1px solid #4d6d95; border-radius: 999px; padding: 1px 7px; font-size: 11px; }
     .region-link { background: none; color: #84c7ff; border: none; cursor: pointer; padding: 0; font: inherit; text-decoration: underline; }
     ul { margin: 8px 0; padding-left: 20px; }
@@ -48,7 +49,8 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
     .map-legend { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; color: #9ca8b7; }
     .map-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
     .map-hidden { display: none; }
-    .map-region.active { stroke: #ffffff; stroke-width: 2.6; fill-opacity: 0.92; }
+    .map-region.active { stroke: #ffffff; stroke-width: 2.8; fill-opacity: 0.95; }
+    .map-region.hover { stroke: #9ad1ff; stroke-width: 2.2; fill-opacity: 0.88; }
     .map-region.dimmed { fill-opacity: 0.45; }
     .map-tooltip { position: fixed; pointer-events: none; background: #0f141d; border: 1px solid #4d6d95; color: #dcecff; border-radius: 6px; padding: 6px 8px; font-size: 12px; z-index: 20; max-width: 260px; box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
     .posture-banner { border: 1px solid #4d6d95; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; background: #142033; }
@@ -59,6 +61,16 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
     .detail-kpis { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
     .detail-kpi { border: 1px solid #3a465d; border-radius: 999px; padding: 2px 8px; font-size: 12px; background: #111722; }
     .detail-section { border: 1px solid #2f3b4d; border-radius: 6px; padding: 8px; background: #111722; }
+    .detail-section h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.03em; color: #a9c3e0; }
+    .detail-subtitle { margin: 0 0 8px; font-size: 12px; color: #8ea3bf; }
+    .subscore-grid { display: grid; grid-template-columns: 1fr; gap: 7px; }
+    .subscore-row { border: 1px solid #2f3b4d; border-radius: 6px; padding: 7px; background: #0f141d; }
+    .subscore-row p { margin: 0; display: flex; justify-content: space-between; font-size: 12px; }
+    .subscore-bar { margin-top: 6px; height: 6px; border-radius: 999px; background: #1d2a3d; overflow: hidden; }
+    .subscore-bar span { display: block; height: 100%; background: linear-gradient(90deg, #4ea4f1, #82d2f7); }
+    .triage-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-top: 10px; }
+    .triage-note { border: 1px solid #33445c; border-radius: 6px; padding: 8px; background: #121c2c; font-size: 12px; }
+    .map-guidance { margin: 6px 0 0; font-size: 12px; color: #9ca8b7; }
     .policy-footer { margin-top: 16px; border-top: 1px solid #2f3b4d; padding-top: 10px; color: #a7b7cb; font-size: 12px; }
     @media (max-width: 1024px) {
       .grid, .detail-grid, .primary-panel-layout.split, .controls-wrap { grid-template-columns: 1fr; }
@@ -134,6 +146,7 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
             <svg id="analyst-map" viewBox="0 0 960 480" role="img" aria-label="Internal region geometry map"></svg>
           </div>
           <div class="map-legend" id="map-legend"></div>
+          <p id="map-interaction-copy" class="map-guidance">Hover for a quick read. Click a region to lock table + detail selection.</p>
           <div id="map-tooltip" class="map-tooltip" hidden></div>
         </section>
       </div>
@@ -151,10 +164,12 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
     <div class="detail-grid">
       <section class="detail-section">
         <h3>Sub-scores</h3>
-        <ul id="subscores-list"></ul>
+        <p class="detail-subtitle">Largest bars indicate strongest risk pressure.</p>
+        <div id="subscores-list" class="subscore-grid"></div>
       </section>
       <section class="detail-section">
         <h3>Latest factors</h3>
+        <p class="detail-subtitle">Newest normalized contributions used in the latest score.</p>
         <table id="factors-table"></table>
       </section>
     </div>
@@ -162,10 +177,12 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
     <div class="detail-grid">
       <section class="detail-section">
         <h3>Second-order effects</h3>
+        <p class="detail-subtitle">Potential knock-on consequences from current pressure mix.</p>
         <table id="second-order-table"></table>
       </section>
       <section class="detail-section">
         <h3>Recent normalized signals</h3>
+        <p class="detail-subtitle">Recent upstream observations feeding factor calculations.</p>
         <table id="signals-table"></table>
       </section>
     </div>
@@ -180,6 +197,7 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
         <table id="delta-history-table"></table>
       </section>
     </div>
+    <div id="triage-notes" class="triage-notes"></div>
   </section>
 
   ${renderPolicyFooterHtml()}
