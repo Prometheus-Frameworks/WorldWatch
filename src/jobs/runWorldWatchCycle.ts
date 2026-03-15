@@ -1,4 +1,5 @@
 import type { QueryableDb } from '../ingestion/types.ts';
+import { createLogger } from '../runtime/logger.ts';
 import { insertJobRun } from './jobRunLogger.ts';
 import { runScoringSnapshotJob } from './scoringSnapshot/runScoringSnapshotJob.ts';
 import { runAcledSourceJob } from './sourceRunners/runAcledSourceJob.ts';
@@ -6,6 +7,8 @@ import { runEiaSourceJob } from './sourceRunners/runEiaSourceJob.ts';
 import { runGdeltSourceJob } from './sourceRunners/runGdeltSourceJob.ts';
 import { runImfPortWatchSourceJob } from './sourceRunners/runImfPortWatchSourceJob.ts';
 import type { JsonFetcher, SourceJobResult } from './sourceRunners/types.ts';
+
+const logger = createLogger('cycle-runner');
 
 export type CycleStatus = 'success' | 'partial' | 'failed';
 
@@ -46,6 +49,8 @@ export interface RunWorldWatchCycleResult {
 
 export async function runWorldWatchCycle(input: RunWorldWatchCycleInput): Promise<RunWorldWatchCycleResult> {
   const startedAt = new Date();
+  logger.info({ event: 'cycle.start', job_name: 'worldwatch_cycle', job_type: 'cycle', status: 'started', started_at: startedAt.toISOString() });
+
   const jobs: CycleJobResult[] = [];
   const sourceResults = await runSourceJobs(input);
   jobs.push(...sourceResults);
@@ -66,6 +71,14 @@ export async function runWorldWatchCycle(input: RunWorldWatchCycleInput): Promis
         mappedRegions: 0,
         insertedSignals: 0,
       });
+      logger.info({
+        event: 'cycle.snapshot.success',
+        job_name: 'scoring_snapshot',
+        job_type: 'snapshot',
+        status: 'success',
+        duration_ms: Date.now() - snapshotStarted.getTime(),
+        records_processed: snapshotResult.regionsProcessed,
+      });
     } catch (error) {
       jobs.push({
         jobName: 'scoring_snapshot',
@@ -76,6 +89,14 @@ export async function runWorldWatchCycle(input: RunWorldWatchCycleInput): Promis
         insertedSignals: 0,
         errorMessage: error instanceof Error ? error.message : String(error),
       });
+      logger.error({
+        event: 'cycle.snapshot.failed',
+        job_name: 'scoring_snapshot',
+        job_type: 'snapshot',
+        status: 'failed',
+        duration_ms: Date.now() - snapshotStarted.getTime(),
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -83,6 +104,7 @@ export async function runWorldWatchCycle(input: RunWorldWatchCycleInput): Promis
   const hasSuccess = jobs.some((job) => job.success);
   const status: CycleStatus = hasSuccess ? (hasFailures ? 'partial' : 'success') : 'failed';
   const finishedAt = new Date();
+  const recordsProcessed = jobs.reduce((sum, job) => sum + job.recordsProcessed, 0);
 
   await insertJobRun(input.db, {
     jobName: 'worldwatch_cycle',
@@ -90,13 +112,24 @@ export async function runWorldWatchCycle(input: RunWorldWatchCycleInput): Promis
     status,
     startedAt,
     finishedAt,
-    recordsProcessed: jobs.reduce((sum, job) => sum + job.recordsProcessed, 0),
+    recordsProcessed,
     errorMessage: status === 'failed' ? 'All source jobs failed. Snapshot was skipped.' : undefined,
     metadata: {
       successfulJobs: jobs.filter((job) => job.success).map((job) => job.jobName),
       failedJobs: jobs.filter((job) => !job.success).map((job) => ({ name: job.jobName, error: job.errorMessage })),
       snapshotTime,
     },
+  });
+
+  logger.info({
+    event: 'cycle.end',
+    job_name: 'worldwatch_cycle',
+    job_type: 'cycle',
+    status,
+    duration_ms: finishedAt.getTime() - startedAt.getTime(),
+    records_processed: recordsProcessed,
+    started_at: startedAt.toISOString(),
+    finished_at: finishedAt.toISOString(),
   });
 
   return {

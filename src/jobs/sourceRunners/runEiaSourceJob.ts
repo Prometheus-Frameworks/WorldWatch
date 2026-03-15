@@ -1,6 +1,9 @@
 import { ingestEiaReadings, type EiaReading } from '../../ingestion/adapters/eiaAdapter.ts';
+import { createLogger } from '../../runtime/logger.ts';
 import { insertJobRun } from '../jobRunLogger.ts';
 import { defaultJsonFetcher, type SourceJobResult, type SourceRunnerContext } from './types.ts';
+
+const logger = createLogger('source-runner');
 
 interface EiaApiResponse {
   response?: {
@@ -22,13 +25,14 @@ export async function runEiaSourceJob(input: RunEiaSourceJobInput): Promise<Sour
     const payload = await fetchJson(input.url, { headers: input.headers });
     const readings = normalizeEiaResponse(payload);
     const stats = await ingestEiaReadings(input.db, readings, input.fetchedAt ?? new Date());
+    const finishedAt = new Date();
 
     await insertJobRun(input.db, {
       jobName: 'eia',
       jobType: 'source',
       status: 'success',
       startedAt,
-      finishedAt: new Date(),
+      finishedAt,
       recordsProcessed: stats.recordsProcessed,
       metadata: {
         source: 'eia',
@@ -38,14 +42,16 @@ export async function runEiaSourceJob(input: RunEiaSourceJobInput): Promise<Sour
       },
     });
 
+    logger.info({ event: 'source.run.end', job_name: 'eia', job_type: 'source', source: 'eia', status: 'success', duration_ms: finishedAt.getTime() - startedAt.getTime(), records_processed: stats.recordsProcessed });
     return { sourceName: 'eia', url: input.url, ...stats };
   } catch (error) {
+    const finishedAt = new Date();
     await insertJobRun(input.db, {
       jobName: 'eia',
       jobType: 'source',
       status: 'failed',
       startedAt,
-      finishedAt: new Date(),
+      finishedAt,
       errorMessage: error instanceof Error ? error.message : String(error),
       metadata: {
         source: 'eia',
@@ -53,6 +59,7 @@ export async function runEiaSourceJob(input: RunEiaSourceJobInput): Promise<Sour
       },
     });
 
+    logger.error({ event: 'source.run.end', job_name: 'eia', job_type: 'source', source: 'eia', status: 'failed', duration_ms: finishedAt.getTime() - startedAt.getTime(), message: error instanceof Error ? error.message : String(error) });
     throw error;
   }
 }

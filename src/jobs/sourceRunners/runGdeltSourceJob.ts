@@ -1,6 +1,9 @@
 import { ingestGdeltEvents, type GdeltEvent } from '../../ingestion/adapters/gdeltAdapter.ts';
+import { createLogger } from '../../runtime/logger.ts';
 import { insertJobRun } from '../jobRunLogger.ts';
 import { defaultJsonFetcher, type SourceJobResult, type SourceRunnerContext } from './types.ts';
+
+const logger = createLogger('source-runner');
 
 interface GdeltApiResponse {
   events?: unknown[];
@@ -19,13 +22,14 @@ export async function runGdeltSourceJob(input: RunGdeltSourceJobInput): Promise<
     const payload = await fetchJson(input.url, { headers: input.headers });
     const events = normalizeGdeltResponse(payload);
     const stats = await ingestGdeltEvents(input.db, events, input.fetchedAt ?? new Date());
+    const finishedAt = new Date();
 
     await insertJobRun(input.db, {
       jobName: 'gdelt',
       jobType: 'source',
       status: 'success',
       startedAt,
-      finishedAt: new Date(),
+      finishedAt,
       recordsProcessed: stats.recordsProcessed,
       metadata: {
         source: 'gdelt',
@@ -35,14 +39,16 @@ export async function runGdeltSourceJob(input: RunGdeltSourceJobInput): Promise<
       },
     });
 
+    logger.info({ event: 'source.run.end', job_name: 'gdelt', job_type: 'source', source: 'gdelt', status: 'success', duration_ms: finishedAt.getTime() - startedAt.getTime(), records_processed: stats.recordsProcessed });
     return { sourceName: 'gdelt', url: input.url, ...stats };
   } catch (error) {
+    const finishedAt = new Date();
     await insertJobRun(input.db, {
       jobName: 'gdelt',
       jobType: 'source',
       status: 'failed',
       startedAt,
-      finishedAt: new Date(),
+      finishedAt,
       errorMessage: error instanceof Error ? error.message : String(error),
       metadata: {
         source: 'gdelt',
@@ -50,6 +56,7 @@ export async function runGdeltSourceJob(input: RunGdeltSourceJobInput): Promise<
       },
     });
 
+    logger.error({ event: 'source.run.end', job_name: 'gdelt', job_type: 'source', source: 'gdelt', status: 'failed', duration_ms: finishedAt.getTime() - startedAt.getTime(), message: error instanceof Error ? error.message : String(error) });
     throw error;
   }
 }

@@ -6,6 +6,7 @@ import {
   getFeed,
   getLatestCycleStatus,
   getOpsHealth,
+  getOpsSummary,
   getRecentFailures,
   getRegionDetail,
   getRegionHistory,
@@ -67,6 +68,11 @@ async function routeRequest(db: QueryableDb, req: IncomingMessage, res: ServerRe
     const limitRaw = requestUrl.searchParams.get('limit');
     const limit = limitRaw ? Number.parseInt(limitRaw, 10) : 20;
     sendJson(res, 200, await getRecentFailures(db, Number.isFinite(limit) ? limit : 20));
+    return;
+  }
+
+  if (path === '/api/ops/summary') {
+    sendJson(res, 200, await getOpsSummary(db));
     return;
   }
 

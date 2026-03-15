@@ -46,6 +46,23 @@ export interface RecentFailureRow {
   metadata_json: Record<string, unknown>;
 }
 
+
+export interface OpsSummary {
+  latest_cycle: LatestCycleStatus | null;
+  last_successful_cycle_at: string | null;
+  stale_source_count: number;
+  stale_sources: string[];
+  recent_failure_count: number;
+  sources: Array<{
+    source_name: string;
+    last_success_at: string | null;
+    last_failure_at: string | null;
+    stale: boolean;
+  }>;
+  latest_cycle_records_processed: number;
+  latest_snapshot_alerts_generated: number;
+  latest_snapshot_regions_scored: number;
+}
 export async function getRegionSummaries(db: QueryableDb): Promise<RegionSummary[]> {
   const result = await db.query<RegionSummary>(
     `SELECT r.slug,
@@ -306,5 +323,81 @@ export async function getOpsHealth(db: QueryableDb): Promise<Record<string, unkn
     stale_sources: staleSources,
     stale_source_count: staleSources.length,
     recent_failure_count: recentFailures.length,
+  };
+}
+
+export async function getOpsSummary(db: QueryableDb): Promise<OpsSummary> {
+  const [latestCycle, sourceFreshness, recentFailures, latestSourceRuns, latestSnapshotStats, lastSuccessCycle] = await Promise.all([
+    getLatestCycleStatus(db),
+    getSourceFreshness(db),
+    getRecentFailures(db, 25),
+    db.query<{ source_name: string; last_success_at: string | null; last_failure_at: string | null }>(
+      `SELECT ds.name AS source_name,
+              latest_success.last_success_at,
+              latest_failure.last_failure_at
+         FROM data_sources ds
+         LEFT JOIN LATERAL (
+            SELECT jr.finished_at AS last_success_at
+              FROM job_runs jr
+             WHERE (jr.job_name = ds.name OR jr.job_name = REPLACE(ds.name, '-', '_'))
+               AND jr.job_type = 'source'
+               AND jr.status = 'success'
+             ORDER BY jr.finished_at DESC
+             LIMIT 1
+         ) latest_success ON true
+         LEFT JOIN LATERAL (
+            SELECT jr.finished_at AS last_failure_at
+              FROM job_runs jr
+             WHERE (jr.job_name = ds.name OR jr.job_name = REPLACE(ds.name, '-', '_'))
+               AND jr.job_type = 'source'
+               AND jr.status = 'failed'
+             ORDER BY jr.finished_at DESC
+             LIMIT 1
+         ) latest_failure ON true
+        ORDER BY ds.name ASC`,
+    ),
+    db.query<{ snapshot_time: string | null; alerts_generated: number; regions_scored: number }>(
+      `SELECT latest_snapshot.snapshot_time,
+              COALESCE(alerts.count, 0)::INT AS alerts_generated,
+              COALESCE(scores.count, 0)::INT AS regions_scored
+         FROM (SELECT MAX(snapshot_time) AS snapshot_time FROM region_scores) latest_snapshot
+         LEFT JOIN LATERAL (
+            SELECT COUNT(*) AS count
+              FROM alerts_feed
+             WHERE snapshot_time = latest_snapshot.snapshot_time
+         ) alerts ON true
+         LEFT JOIN LATERAL (
+            SELECT COUNT(*) AS count
+              FROM region_scores
+             WHERE snapshot_time = latest_snapshot.snapshot_time
+         ) scores ON true`,
+    ),
+    db.query<{ finished_at: string }>(
+      `SELECT finished_at
+         FROM job_runs
+        WHERE job_type = 'cycle' AND status = 'success'
+        ORDER BY finished_at DESC
+        LIMIT 1`,
+    ),
+  ]);
+
+  const staleSources = sourceFreshness.filter((row) => row.stale).map((row) => row.source_name);
+  const snapshotRow = latestSnapshotStats.rows[0];
+
+  return {
+    latest_cycle: latestCycle,
+    last_successful_cycle_at: lastSuccessCycle.rows[0]?.finished_at ?? null,
+    stale_source_count: staleSources.length,
+    stale_sources: staleSources,
+    recent_failure_count: recentFailures.length,
+    sources: latestSourceRuns.rows.map((row) => ({
+      source_name: row.source_name,
+      last_success_at: row.last_success_at,
+      last_failure_at: row.last_failure_at,
+      stale: staleSources.includes(row.source_name),
+    })),
+    latest_cycle_records_processed: latestCycle?.records_processed ?? 0,
+    latest_snapshot_alerts_generated: snapshotRow?.alerts_generated ?? 0,
+    latest_snapshot_regions_scored: snapshotRow?.regions_scored ?? 0,
   };
 }

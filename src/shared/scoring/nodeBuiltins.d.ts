@@ -46,15 +46,24 @@ declare module 'node:url' {
       get(name: string): string | null;
     };
   }
+
+  export function pathToFileURL(path: string): { href: string };
 }
 
 declare module 'node:path' {
   export function resolve(...segments: string[]): string;
+  export function join(...segments: string[]): string;
+}
+
+declare module 'node:os' {
+  export function tmpdir(): string;
 }
 
 declare module 'node:fs/promises' {
   export function readFile(path: string, encoding: string): Promise<string>;
   export function readdir(path: string): Promise<string[]>;
+  export function mkdir(path: string, options?: { recursive?: boolean }): Promise<void>;
+  export function writeFile(path: string, data: string): Promise<void>;
 }
 
 declare const Buffer: {
@@ -69,9 +78,11 @@ declare namespace NodeJS {
 
 declare const process: {
   cwd(): string;
+  argv: string[];
   env: NodeJS.ProcessEnv;
   exit(code?: number): never;
   on(signal: string, handler: () => void | Promise<void>): void;
 };
 
 declare function fetch(input: string): Promise<{ status: number; json(): Promise<unknown> }>;
+declare function setImmediate(callback: () => void): void;
