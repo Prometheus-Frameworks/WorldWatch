@@ -115,3 +115,72 @@ test('runScoringSnapshotJob uses injected config for normalization and health mo
   const conflictScore = Number((scoreInsert as { params?: unknown[] }).params?.[3]);
   assert.equal(conflictScore, 10);
 });
+
+test('runScoringSnapshotJob incorporates displacement and thermal signals into subscores', async () => {
+  const writes: Array<{ sql: string; params?: unknown[] }> = [];
+
+  const db: QueryableDb = {
+    async query<T>(sql: string, params?: unknown[]) {
+      if (sql.includes('SELECT id, slug, name FROM regions')) {
+        return { rows: [{ id: 1, slug: 'levant', name: 'Levant' }] as T[] };
+      }
+
+      if (sql.includes('FROM normalized_signals ns')) {
+        return {
+          rows: [
+            {
+              region_id: 1,
+              source_name: 'unhcr',
+              signal_type: 'displacement.delta',
+              value: 10000,
+              event_time: '2026-01-01T00:00:00Z',
+              ingested_at: '2026-01-01T00:10:00Z',
+              reliability_weight: 0.88,
+            },
+            {
+              region_id: 1,
+              source_name: 'unhcr',
+              signal_type: 'displacement.acceleration',
+              value: 70,
+              event_time: '2026-01-01T00:00:00Z',
+              ingested_at: '2026-01-01T00:11:00Z',
+              reliability_weight: 0.88,
+            },
+            {
+              region_id: 1,
+              source_name: 'nasa-firms',
+              signal_type: 'thermal.fire_activity_index',
+              value: 60,
+              event_time: '2026-01-01T00:30:00Z',
+              ingested_at: '2026-01-01T00:31:00Z',
+              reliability_weight: 0.7,
+            },
+            {
+              region_id: 1,
+              source_name: 'nasa-firms',
+              signal_type: 'thermal.anomaly_count',
+              value: 6,
+              event_time: '2026-01-01T00:30:00Z',
+              ingested_at: '2026-01-01T00:31:00Z',
+              reliability_weight: 0.7,
+            },
+          ] as T[],
+        };
+      }
+
+      if (sql.includes('INSERT INTO region_scores')) {
+        writes.push({ sql, params });
+      }
+
+      return { rows: [{ id: 1 }] as T[] };
+    },
+  };
+
+  await runScoringSnapshotJob(db, new Date('2026-01-02T00:00:00Z'));
+
+  const scoreInsert = writes.find((write) => write.sql.includes('INSERT INTO region_scores'));
+  assert.ok(scoreInsert);
+  const params = (scoreInsert as { params?: unknown[] }).params ?? [];
+  assert.equal(Number(params[3]) > 0, true, 'conflict_score should include thermal influence');
+  assert.equal(Number(params[6]) > 0, true, 'displacement_score should include UNHCR signals');
+});
