@@ -1,7 +1,9 @@
 import { getAnalystConsoleClientScript } from './analystClient.ts';
-import { renderPolicyFooterHtml, renderPolicyPanelHtml } from './policy.ts';
+import type { DeploymentPostureConfig } from './posture.ts';
+import { renderPostureBannerHtml } from './posture.ts';
+import { renderPolicyFooterHtml } from './policy.ts';
 
-export function renderAnalystConsole(): string {
+export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -49,8 +51,15 @@ export function renderAnalystConsole(): string {
     .map-region.active { stroke: #ffffff; stroke-width: 2.6; fill-opacity: 0.92; }
     .map-region.dimmed { fill-opacity: 0.45; }
     .map-tooltip { position: fixed; pointer-events: none; background: #0f141d; border: 1px solid #4d6d95; color: #dcecff; border-radius: 6px; padding: 6px 8px; font-size: 12px; z-index: 20; max-width: 260px; box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
+    .posture-banner { border: 1px solid #4d6d95; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; background: #142033; }
+    .posture-banner p { margin: 2px 0; }
+    .posture-title { font-size: 12px; color: #9eb7d8; text-transform: uppercase; letter-spacing: 0.04em; }
+    .posture-copy { font-size: 13px; }
+    .detail-header-card { border: 1px solid #33445c; border-radius: 6px; padding: 10px; margin-bottom: 10px; background: #141c28; }
+    .detail-kpis { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .detail-kpi { border: 1px solid #3a465d; border-radius: 999px; padding: 2px 8px; font-size: 12px; background: #111722; }
+    .detail-section { border: 1px solid #2f3b4d; border-radius: 6px; padding: 8px; background: #111722; }
     .policy-footer { margin-top: 16px; border-top: 1px solid #2f3b4d; padding-top: 10px; color: #a7b7cb; font-size: 12px; }
-    .policy-card p { font-size: 13px; line-height: 1.45; }
     @media (max-width: 1024px) {
       .grid, .detail-grid, .primary-panel-layout.split, .controls-wrap { grid-template-columns: 1fr; }
       .layout-toggle { margin-left: 0; }
@@ -58,14 +67,17 @@ export function renderAnalystConsole(): string {
   </style>
 </head>
 <body>
+  ${renderPostureBannerHtml(posture)}
+
   <div class="topline">
     <h1>WorldWatch Analyst Dashboard</h1>
-    <p><a href="/ops">Open system health console →</a></p>
+    <p><a href="/ops">Open system health console →</a> · <a href="/about">About / Usage / Terms →</a></p>
   </div>
 
   <div class="grid">
     <section class="card">
       <h2>Region dashboard</h2>
+      <p class="hint">Table and detail remain the primary workflow. Use split layout only when spatial context helps the current investigation.</p>
       <div id="summary-cards" class="summary-grid"></div>
 
       <div class="controls-wrap">
@@ -134,43 +146,41 @@ export function renderAnalystConsole(): string {
   </div>
 
   <section class="card" id="region-detail" hidden>
-    <div id="detail-header"></div>
+    <div id="detail-header" class="detail-header-card"></div>
 
     <div class="detail-grid">
-      <section>
+      <section class="detail-section">
         <h3>Sub-scores</h3>
         <ul id="subscores-list"></ul>
       </section>
-      <section>
+      <section class="detail-section">
         <h3>Latest factors</h3>
         <table id="factors-table"></table>
       </section>
     </div>
 
     <div class="detail-grid">
-      <section>
+      <section class="detail-section">
         <h3>Second-order effects</h3>
         <table id="second-order-table"></table>
       </section>
-      <section>
+      <section class="detail-section">
         <h3>Recent normalized signals</h3>
         <table id="signals-table"></table>
       </section>
     </div>
 
     <div class="detail-grid">
-      <section>
+      <section class="detail-section">
         <h3>Score history</h3>
         <table id="score-history-table"></table>
       </section>
-      <section>
+      <section class="detail-section">
         <h3>Delta history</h3>
         <table id="delta-history-table"></table>
       </section>
     </div>
   </section>
-
-  ${renderPolicyPanelHtml()}
 
   ${renderPolicyFooterHtml()}
 

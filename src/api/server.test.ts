@@ -201,7 +201,11 @@ test('manual cycle trigger rejects overlap while run is in-flight', async () => 
 
 test('server serves analyst dashboard at root and ops at /ops', async () => {
   const db: QueryableDb = { query: async <T>() => ({ rows: [] as T[] }) };
-  const server = createWorldWatchApiServer(db);
+  const server = createWorldWatchApiServer(db, undefined, {
+    posture: 'invite_only',
+    bannerText: 'Invite-only analyst workspace',
+    subtitleText: 'Approved civilian users only.',
+  });
 
   await new Promise<void>((resolve) => server.listen(0, resolve));
   const address = server.address();
@@ -215,7 +219,6 @@ test('server serves analyst dashboard at root and ops at /ops', async () => {
   assert.ok(analystHtml.includes('id="analyst-map"'));
   assert.ok(analystHtml.includes("regionsGeo: '/api/regions/geo'"));
   assert.ok(analystHtml.includes("target.closest('[data-region]')"));
-  assert.ok(analystHtml.includes('About / Usage / Terms'));
   assert.ok(analystHtml.includes('civilian, public-source monitoring and analysis tool'));
   assert.ok(analystHtml.includes('You may not use WorldWatch to support military targeting'));
 
@@ -223,8 +226,32 @@ test('server serves analyst dashboard at root and ops at /ops', async () => {
   assert.equal(opsResponse.status, 200);
   const opsHtml = await (opsResponse as unknown as { text: () => Promise<string> }).text();
   assert.ok(opsHtml.includes('WorldWatch Internal Ops Console'));
-  assert.ok(opsHtml.includes('About / Usage / Terms'));
   assert.ok(opsHtml.includes('public-source monitoring and analysis only'));
+  assert.ok(analystHtml.includes('Deployment posture:'));
+  assert.ok(analystHtml.includes('Invite-only analyst workspace'));
+  assert.ok(opsHtml.includes('Deployment posture:'));
+  assert.ok(opsHtml.includes('Approved civilian users only.'));
+
+  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+});
+
+
+
+test('server serves /about policy route with canonical usage statements', async () => {
+  const db: QueryableDb = { query: async <T>() => ({ rows: [] as T[] }) };
+  const server = createWorldWatchApiServer(db);
+
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  if (!address) throw new Error('Server address unavailable');
+
+  const response = await fetch(`http://127.0.0.1:${address.port}/about`);
+  assert.equal(response.status, 200);
+  const html = await (response as unknown as { text: () => Promise<string> }).text();
+
+  assert.ok(html.includes('WorldWatch About / Usage / Terms'));
+  assert.ok(html.includes('civilian, public-source monitoring and analysis tool'));
+  assert.ok(html.includes('You may not use WorldWatch to support military targeting'));
 
   await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
 });

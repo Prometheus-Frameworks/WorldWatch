@@ -1,7 +1,9 @@
 import { getOpsConsoleClientScript } from './client.ts';
-import { renderPolicyFooterHtml, renderPolicyPanelHtml } from './policy.ts';
+import type { DeploymentPostureConfig } from './posture.ts';
+import { renderPostureBannerHtml } from './posture.ts';
+import { renderPolicyFooterHtml } from './policy.ts';
 
-export function renderOpsConsole(): string {
+export function renderOpsConsole(posture: DeploymentPostureConfig): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -19,13 +21,19 @@ export function renderOpsConsole(): string {
     p { margin: 6px 0; }
     pre { margin: 0; white-space: pre-wrap; max-height: 220px; overflow: auto; }
     a { color: #7ec8ff; }
+    .posture-banner { border: 1px solid #5d7ea6; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; background: #182433; }
+    .posture-banner p { margin: 2px 0; }
+    .posture-title { font-size: 12px; color: #b6cae3; text-transform: uppercase; letter-spacing: 0.04em; }
+    .posture-copy { font-size: 13px; }
     .policy-footer { margin-top: 16px; border-top: 1px solid #333; padding-top: 10px; color: #b2b2b2; font-size: 12px; }
-    .policy-card p { font-size: 13px; line-height: 1.45; }
   </style>
 </head>
 <body>
+  ${renderPostureBannerHtml(posture)}
+
   <h1>WorldWatch Internal Ops Console</h1>
   <p><a href="/">Open analyst world-state dashboard →</a></p>
+  <p><a href="/about">Open About / Usage / Terms →</a></p>
   <button id="trigger">Run Cycle</button>
   <span id="trigger-status"></span>
 
@@ -44,8 +52,6 @@ export function renderOpsConsole(): string {
   <section class="card"><h2>Recent source runs</h2><table id="source-runs-table"></table></section>
   <section class="card"><h2>Source freshness</h2><table id="freshness-table"></table></section>
   <section class="card"><h2>Recent failures</h2><table id="failures-table"></table></section>
-
-  ${renderPolicyPanelHtml()}
 
   ${renderPolicyFooterHtml()}
 

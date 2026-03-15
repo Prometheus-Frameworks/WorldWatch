@@ -23,6 +23,8 @@ export function getAnalystConsoleClientScript(): string {
     let activeRegionSlug = null;
     let lastDetailSnapshotByRegion = new Map();
     let topMoverSlugs = new Set();
+    let lastTableSignature = '';
+    let lastMapSignature = '';
 
     function formatTimestamp(value) {
       if (!value) return '-';
@@ -115,6 +117,10 @@ export function getAnalystConsoleClientScript(): string {
       return sortRegions(filtered);
     }
 
+    function getRenderSignature(rows) {
+      return rows.map((row) => [row.slug, row.composite_score, row.delta_24h, row.delta_7d, row.status_band, row.confidence_band, row.snapshot_time].join('|')).join(';');
+    }
+
     function renderRegionsTable(allRows) {
       const table = document.getElementById('regions-table');
       if (!(table instanceof HTMLTableElement)) return;
@@ -125,6 +131,10 @@ export function getAnalystConsoleClientScript(): string {
       }
 
       const sorted = sortRegions(filtered);
+      const signature = getRenderSignature(sorted) + '|active:' + (activeRegionSlug ?? 'none');
+      if (signature === lastTableSignature) {
+        return;
+      }
       const header = '<tr>' + [
         'Region', 'Composite risk', 'Status band', 'Confidence', 'Freshness', 'Evidence', 'Δ 24h', 'Δ 7d', 'Latest snapshot'
       ].map((value) => '<th>' + value + '</th>').join('') + '</tr>';
@@ -145,6 +155,7 @@ export function getAnalystConsoleClientScript(): string {
       }).join('');
 
       table.innerHTML = header + body;
+      lastTableSignature = signature;
     }
 
     function renderSummaryCards(summary) {
@@ -234,14 +245,16 @@ export function getAnalystConsoleClientScript(): string {
 
       document.getElementById('detail-header').innerHTML =
         '<h2>' + latest.name + '</h2>' +
-        '<p><strong>Composite:</strong> ' + formatNum(latest.composite_score, 1) +
-        ' · <strong>Δ24h:</strong> ' + formatNum(detail.latest_delta?.delta_24h, 1) +
-        ' · <strong>Δ7d:</strong> ' + formatNum(detail.latest_delta?.delta_7d, 1) + '</p>' +
-        '<p><strong>Status:</strong> ' + latest.status_band +
-        ' · <strong>Confidence:</strong> ' + latest.confidence_band +
-        ' · <strong>Freshness:</strong> ' + latest.freshness_state +
-        ' · <strong>Evidence:</strong> ' + latest.evidence_state + '</p>' +
-        '<p><strong>Snapshot:</strong> ' + formatTimestamp(latest.snapshot_time) + '</p>';
+        '<p><strong>Snapshot:</strong> ' + formatTimestamp(latest.snapshot_time) + '</p>' +
+        '<div class="detail-kpis">' +
+          '<span class="detail-kpi"><strong>Composite:</strong> ' + formatNum(latest.composite_score, 1) + '</span>' +
+          '<span class="detail-kpi"><strong>Δ24h:</strong> ' + formatNum(detail.latest_delta?.delta_24h, 1) + '</span>' +
+          '<span class="detail-kpi"><strong>Δ7d:</strong> ' + formatNum(detail.latest_delta?.delta_7d, 1) + '</span>' +
+          '<span class="detail-kpi"><strong>Status:</strong> ' + latest.status_band + '</span>' +
+          '<span class="detail-kpi"><strong>Confidence:</strong> ' + latest.confidence_band + '</span>' +
+          '<span class="detail-kpi"><strong>Freshness:</strong> ' + latest.freshness_state + '</span>' +
+          '<span class="detail-kpi"><strong>Evidence:</strong> ' + latest.evidence_state + '</span>' +
+        '</div>';
 
       document.getElementById('subscores-list').innerHTML = subscores
         .map(([label, value]) => '<li><strong>' + label + ':</strong> ' + formatNum(Number(value), 1) + '</li>')
@@ -373,8 +386,14 @@ export function getAnalystConsoleClientScript(): string {
       const sortedVisibleRows = getFilteredSortedRegions();
       const visibleSlugs = new Set(sortedVisibleRows.map((row) => row.slug));
       const visibleGeo = geoRegions.filter((row) => visibleSlugs.has(row.slug));
+      const mapSignature = sortedVisibleRows.map((row) => row.slug + ':' + row.status_band).join(';') + '|active:' + (activeRegionSlug ?? 'none');
       if (visibleGeo.length === 0) {
         map.innerHTML = '';
+        lastMapSignature = '';
+        return;
+      }
+
+      if (mapSignature === lastMapSignature) {
         return;
       }
 
@@ -390,6 +409,7 @@ export function getAnalystConsoleClientScript(): string {
       }).join('');
 
       map.innerHTML = paths;
+      lastMapSignature = mapSignature;
     }
 
     function showMapTooltip(text, x, y) {

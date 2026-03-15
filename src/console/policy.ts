@@ -7,5 +7,5 @@ export function renderPolicyPanelHtml(title = 'About / Usage / Terms'): string {
 }
 
 export function renderPolicyFooterHtml(): string {
-  return `<footer class="policy-footer"><p>${CIVILIAN_USE_STATEMENT}</p></footer>`;
+  return `<footer class="policy-footer"><p>${CIVILIAN_USE_STATEMENT}</p><p>${ACCEPTABLE_USE_STATEMENT}</p><p><a href="/about">About / Usage / Terms</a></p></footer>`;
 }

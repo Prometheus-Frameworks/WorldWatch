@@ -8,8 +8,9 @@ WorldWatch is an internal analyst + operations system for **civilian, public-sou
 
 - `GET /` or `GET /analyst` — analyst dashboard (table-first workflow, optional internal SVG map).
 - `GET /ops` — internal operations console (scheduler/runtime visibility and manual cycle trigger).
+- `GET /about` — internal About / Usage / Terms page that preserves canonical civilian-use and acceptable-use statements.
 
-Both surfaces include About / Usage / Terms content and acceptable-use language.
+Analyst and ops surfaces render a deployment-posture banner and keep civilian-use guidance visible.
 
 ## Data/source coverage
 
@@ -47,6 +48,9 @@ All scripts run with Node TypeScript strip-types mode.
 ### Optional
 
 - `PORT` (default `8787`)
+- `DEPLOYMENT_POSTURE` (`internal` | `invite_only` | `public_read_only`, default `internal`)
+- `DEPLOYMENT_BANNER_TEXT` (optional banner override)
+- `DEPLOYMENT_SUBTITLE_TEXT` (optional subtitle override)
 
 ## API overview
 

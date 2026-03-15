@@ -24,10 +24,14 @@ async function main(): Promise<void> {
     }
   };
 
-  const server = createWorldWatchApiServer(runtimeDb.db, {
-    runCycle: runCycleSafely,
-    isCycleRunning: () => Boolean(cycleInFlight),
-  });
+  const server = createWorldWatchApiServer(
+    runtimeDb.db,
+    {
+      runCycle: runCycleSafely,
+      isCycleRunning: () => Boolean(cycleInFlight),
+    },
+    config.deployment,
+  );
 
   const shutdown = async (): Promise<void> => {
     logger.info({ event: 'api.shutdown.start', message: 'Shutting down API server.' });
