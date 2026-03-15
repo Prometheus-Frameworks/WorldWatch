@@ -5,6 +5,7 @@ import {
   calculateRegionScore,
   computeCompositeScore,
   deriveEvidenceState,
+  deriveFreshnessState,
 } from './calculator.ts';
 import type { SubScores } from './types.ts';
 
@@ -44,4 +45,15 @@ test('deriveEvidenceState returns mixed when reliable datasets conflict', () => 
   );
 
   assert.equal(mixed, 'mixed');
+});
+
+
+test('deriveFreshnessState is not dominated by a single fresh signal', () => {
+  const freshness = deriveFreshnessState([
+    { source: 'acled', isMovingUp: true, isReliable: true, ageMinutes: 5 },
+    { source: 'gdelt', isMovingUp: true, isReliable: true, ageMinutes: 500 },
+    { source: 'eia', isMovingUp: true, isReliable: true, ageMinutes: 600 },
+  ]);
+
+  assert.equal(freshness, 'aging');
 });

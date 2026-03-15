@@ -16,6 +16,7 @@ import {
   getRegionSummaries,
   getSourceFreshness,
 } from './queries.ts';
+import { renderAnalystConsole } from '../console/renderAnalystConsole.ts';
 import { renderOpsConsole } from '../console/renderOpsConsole.ts';
 
 export interface ApiCycleControl {
@@ -67,7 +68,12 @@ async function routeRequest(
   const requestUrl = new URL(req.url ?? '/', 'http://localhost');
   const path = requestUrl.pathname;
 
-  if (method === 'GET' && (path === '/' || path === '/ops')) {
+  if (method === 'GET' && (path === '/' || path === '/analyst')) {
+    sendHtml(res, 200, renderAnalystConsole());
+    return;
+  }
+
+  if (method === 'GET' && path === '/ops') {
     sendHtml(res, 200, renderOpsConsole());
     return;
   }

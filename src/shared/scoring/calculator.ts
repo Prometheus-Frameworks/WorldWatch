@@ -46,10 +46,13 @@ export function deriveStatusBand(score: number): StatusBand {
 export function deriveFreshnessState(signals: SignalHealth[]): FreshnessState {
   if (signals.length === 0) return 'stale';
 
-  const newestAge = Math.min(...signals.map((signal) => signal.ageMinutes));
+  const reliabilityScoped = signals.filter((signal) => signal.isReliable);
+  const relevantSignals = reliabilityScoped.length > 0 ? reliabilityScoped : signals;
+  const ages = relevantSignals.map((signal) => signal.ageMinutes).sort((a, b) => a - b);
+  const anchorAge = ages[Math.min(1, ages.length - 1)];
 
-  if (newestAge <= FRESHNESS_THRESHOLDS_MINUTES.fresh) return 'fresh';
-  if (newestAge <= FRESHNESS_THRESHOLDS_MINUTES.aging) return 'aging';
+  if (anchorAge <= FRESHNESS_THRESHOLDS_MINUTES.fresh) return 'fresh';
+  if (anchorAge <= FRESHNESS_THRESHOLDS_MINUTES.aging) return 'aging';
   return 'stale';
 }
 
