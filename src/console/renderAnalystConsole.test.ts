@@ -30,4 +30,7 @@ test('analyst console includes map-table coordination and triage readability aff
   assert.ok(html.includes('id="triage-notes"'));
   assert.ok(html.includes('Array.isArray(detail.triage_notes) ? detail.triage_notes : []'));
   assert.ok(html.includes('Largest bars indicate strongest risk pressure.'));
+  assert.ok(html.includes('id="explainability-factors-table"'));
+  assert.ok(html.includes('id="explainability-state-cards"'));
+  assert.ok(html.includes('id="freshest-sources-table"'));
 });

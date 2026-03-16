@@ -1,5 +1,12 @@
 import type { QueryableDb } from '../ingestion/types.ts';
-import { buildTriageSpotlight, deriveTriageNotes, toTriageInput, type TriageNote } from './analystPayload.ts';
+import {
+  buildDetailExplainabilityGroups,
+  buildTriageSpotlight,
+  deriveDetailExplainabilitySummary,
+  deriveTriageNotes,
+  toTriageInput,
+  type TriageNote,
+} from './analystPayload.ts';
 
 export interface RegionSummary {
   slug: string;
@@ -294,6 +301,7 @@ export async function getRegionDetail(db: QueryableDb, slug: string, historyLimi
     },
     factor_payload: head.factors_json,
     second_order_effects: head.second_order_effects_json,
+    explainability_groups: buildDetailExplainabilityGroups(head.factors_json),
     latest_delta: {
       delta_24h: head.delta_24h,
       delta_7d: head.delta_7d,
@@ -306,6 +314,11 @@ export async function getRegionDetail(db: QueryableDb, slug: string, historyLimi
       delta_24h: Number(head.delta_24h),
       delta_7d: Number(head.delta_7d),
     })),
+    explainability_summary: deriveDetailExplainabilitySummary({
+      freshness_state: String(head.freshness_state),
+      confidence_band: String(head.confidence_band),
+      evidence_state: String(head.evidence_state),
+    }),
     recent_signals: recentSignals.rows,
     source_contributions: sourceContributions.rows,
     history: history.rows,
