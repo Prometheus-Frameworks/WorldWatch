@@ -322,10 +322,15 @@ export function getAnalystConsoleClientScript(): string {
       renderScanCards(detail, explainabilitySummary, explainabilityGroups);
       const stateCards = document.getElementById('explainability-state-cards');
       if (stateCards instanceof HTMLElement) {
+        const divergence = explainabilityGroups.narrative_physical_divergence;
+        const divergenceCard = divergence?.is_active
+          ? '<article class="state-card"><p><strong>Trust cue:</strong> Narrative-leading signal</p><p>' + String(divergence.analyst_copy ?? '') + '</p></article>'
+          : '';
         stateCards.innerHTML = [
           '<article class="state-card"><p><strong>Freshness:</strong> ' + String(explainabilitySummary.freshness_state ?? latest.freshness_state ?? '-') + '</p><p>' + String(explainabilitySummary.freshness_copy ?? '') + '</p></article>',
           '<article class="state-card"><p><strong>Confidence:</strong> ' + String(explainabilitySummary.confidence_band ?? latest.confidence_band ?? '-') + '</p><p>' + String(explainabilitySummary.confidence_copy ?? '') + '</p></article>',
           '<article class="state-card"><p><strong>Evidence:</strong> ' + String(explainabilitySummary.evidence_state ?? latest.evidence_state ?? '-') + '</p><p>' + String(explainabilitySummary.evidence_copy ?? '') + '</p></article>',
+          divergenceCard,
         ].join('');
       }
       renderHistoryTable('second-order-table', Array.isArray(detail.second_order_effects) ? detail.second_order_effects : [], [{ key: 'effectType', header: 'Effect' }, { key: 'description', header: 'Description' }, { key: 'confidence', header: 'Confidence' }]);
