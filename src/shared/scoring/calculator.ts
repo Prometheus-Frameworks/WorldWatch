@@ -93,6 +93,12 @@ export function deriveConfidenceBand(signals: SignalHealth[]): ConfidenceBand {
   const reliable = signals.filter((signal) => signal.isReliable);
   const movingUp = reliable.filter((signal) => signal.isMovingUp);
   const reliableRatio = reliable.length / signals.length;
+  const reliableDirections = new Set(reliable.map((signal) => signal.isMovingUp));
+  const hasReliableDisagreement = reliableDirections.size > 1;
+
+  if (hasReliableDisagreement && reliable.length <= 3) {
+    return 'low';
+  }
 
   if (reliable.length >= 3 && movingUp.length >= 2 && reliableRatio >= 0.6) {
     return 'high';

@@ -16,14 +16,15 @@
 - Stable internal analyst + ops workflow powered by consolidated analyst payload (`/api/analyst/dashboard`).
 
 ### Still prototype / evolving
-- Analyst detail readability/scanability still being iterated (especially dense explainability sections).
 - Internal map is supporting context, not the primary workflow.
 - Source quality handling is deterministic but still dependent on upstream source freshness/availability.
+- Explainability language for multi-domain disagreement is deterministic but still heuristic in phrasing.
 
 ## Recently completed sprints (latest)
-- Analyst detail readability/scanability pass tightened hierarchy and spacing while preserving table/detail-first workflow.
+- Analyst detail readability/scanability pass tightened hierarchy and spacing while preserving table/detail-first workflow (complete).
 - Explainability quick-scan cards now foreground freshness/confidence/evidence and mixed-signal/stale-risk posture before dense tables.
 - Source disagreement and source contribution sections were reformatted into more scannable structured tables (domain/type/sources/direction/recency/reliability).
+- Validation + edge-case pressure-test pass landed for freshness, confidence/severity mismatch, disagreement integrity, and domain odd cases in scoring/explainability tests.
 - Map/table sync behavior and deterministic scoring/provenance model were preserved.
 
 ## Known weak spots
@@ -32,6 +33,6 @@
 - Freshness degradation can drive stale-high-risk states that need operator reruns and analyst verification.
 
 ## Immediate next priorities
-1. Improve analyst detail readability and scanability without reducing deterministic traceability.
-2. Validate triage UX for stale high-risk, mixed-signal, and low-confidence/high-severity cases.
+1. Add reusable region-scenario fixtures for analyst-trust edge-case validation to keep future scoring/explainability changes comparable.
+2. Tighten explainability phrasing for multi-domain disagreement while preserving deterministic, inspectable derivation.
 3. Keep posture/policy language and enforcement behavior aligned during UI/API changes.

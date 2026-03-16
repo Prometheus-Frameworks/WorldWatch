@@ -67,12 +67,85 @@ test('deriveFreshnessState honors source coverage in single-domain fallback', ()
   assert.equal(freshness, 'aging');
 });
 
-test('deriveConfidenceBand stays distinct from severity during disagreement', () => {
+test('deriveFreshnessState keeps one fresh low-signal source from outranking broad stale coverage', () => {
+  const freshness = deriveFreshnessState([
+    { source: 'acled', domain: 'conflictPressure', observedSignals: 1, isMovingUp: true, isReliable: true, ageMinutes: 10 },
+    { source: 'gdelt', domain: 'conflictPressure', observedSignals: 8, isMovingUp: true, isReliable: true, ageMinutes: 780 },
+    { source: 'nasa-firms', domain: 'conflictPressure', observedSignals: 7, isMovingUp: true, isReliable: true, ageMinutes: 820 },
+  ]);
+
+  assert.equal(freshness, 'stale');
+});
+
+test('deriveFreshnessState returns aging when one reliable domain is fresh and others are aging', () => {
+  const freshness = deriveFreshnessState([
+    { source: 'acled', domain: 'conflictPressure', observedSignals: 2, isMovingUp: true, isReliable: true, ageMinutes: 55 },
+    { source: 'imf-portwatch', domain: 'chokepointStress', observedSignals: 2, isMovingUp: true, isReliable: true, ageMinutes: 420 },
+    { source: 'eia', domain: 'oilShockRisk', observedSignals: 2, isMovingUp: true, isReliable: true, ageMinutes: 470 },
+  ]);
+
+  assert.equal(freshness, 'aging');
+});
+
+test('deriveConfidenceBand degrades under reliable-source disagreement regardless of severity', () => {
   const confidence = deriveConfidenceBand([
     { source: 'acled', domain: 'conflictPressure', observedSignals: 2, isMovingUp: true, isReliable: true, ageMinutes: 30 },
     { source: 'gdelt', domain: 'narrativeHeat', observedSignals: 3, isMovingUp: false, isReliable: true, ageMinutes: 40 },
     { source: 'unhcr', domain: 'displacementAcceleration', observedSignals: 2, isMovingUp: true, isReliable: false, ageMinutes: 50 },
   ]);
 
-  assert.equal(confidence, 'medium');
+  assert.equal(confidence, 'low');
+});
+
+test('high score can remain low confidence and mixed evidence during reliable disagreement', () => {
+  const highRiskSubScores: SubScores = {
+    conflictPressure: 94,
+    chokepointStress: 89,
+    oilShockRisk: 85,
+    displacementAcceleration: 82,
+    narrativeHeat: 90,
+  };
+
+  const result = calculateRegionScore(highRiskSubScores, [
+    { source: 'acled', domain: 'conflictPressure', observedSignals: 3, isMovingUp: true, isReliable: true, ageMinutes: 60 },
+    { source: 'imf-portwatch', domain: 'chokepointStress', observedSignals: 2, isMovingUp: true, isReliable: true, ageMinutes: 75 },
+    { source: 'eia', domain: 'oilShockRisk', observedSignals: 2, isMovingUp: false, isReliable: true, ageMinutes: 80 },
+  ]);
+
+  assert.equal(result.statusBand, 'critical');
+  assert.equal(result.confidenceBand, 'low');
+  assert.equal(result.evidenceState, 'mixed');
+});
+
+test('moderate score can still carry high confidence when reliable sources agree', () => {
+  const moderateSubScores: SubScores = {
+    conflictPressure: 48,
+    chokepointStress: 52,
+    oilShockRisk: 47,
+    displacementAcceleration: 42,
+    narrativeHeat: 45,
+  };
+
+  const result = calculateRegionScore(moderateSubScores, [
+    { source: 'acled', domain: 'conflictPressure', observedSignals: 2, isMovingUp: true, isReliable: true, ageMinutes: 45 },
+    { source: 'imf-portwatch', domain: 'chokepointStress', observedSignals: 2, isMovingUp: true, isReliable: true, ageMinutes: 70 },
+    { source: 'eia', domain: 'oilShockRisk', observedSignals: 2, isMovingUp: true, isReliable: true, ageMinutes: 80 },
+  ]);
+
+  assert.equal(result.compositeScore < 60, true);
+  assert.equal(result.statusBand, 'elevated');
+  assert.equal(result.confidenceBand, 'high');
+  assert.equal(result.evidenceState, 'confirmed');
+});
+
+test('single-source spikes keep confidence and evidence conservative', () => {
+  const confidence = deriveConfidenceBand([
+    { source: 'acled', domain: 'conflictPressure', observedSignals: 6, isMovingUp: true, isReliable: true, ageMinutes: 35 },
+  ]);
+  const evidence = deriveEvidenceState([
+    { source: 'acled', domain: 'conflictPressure', observedSignals: 6, isMovingUp: true, isReliable: true, ageMinutes: 35 },
+  ], confidence);
+
+  assert.equal(confidence, 'low');
+  assert.equal(evidence, 'incomplete');
 });
