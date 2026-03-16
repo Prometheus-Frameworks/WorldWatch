@@ -1,9 +1,9 @@
 # TASK_QUEUE
 
 ## Now
-- Validate that disagreement/contribution table formatting improves first-pass scan speed in analyst review sessions.
-- Confirm quick-scan explainability cards reduce misreads for stale-high-risk and mixed-signal regions.
-- Ensure triage-note clarity for low-confidence high-severity cases.
+- Build reusable edge-case region scenario fixtures/helpers for scoring + explainability tests (freshness, disagreement, odd-domain combinations).
+- Add deterministic explainability refinements for narrative-vs-physical/logistical divergence labeling.
+- Verify disagreement summary copy ordering remains stable when multiple domains disagree simultaneously.
 
 ## Next
 - Add lightweight UX validation checklist for analyst detail (speed to interpret, misread rate, escalation confidence).

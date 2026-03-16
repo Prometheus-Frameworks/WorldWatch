@@ -245,7 +245,7 @@ export function deriveDetailExplainabilitySummary(
   const evidenceCopyByState: Record<string, string> = {
     confirmed: `Evidence is confirmed because ${alignedDomains.size || 1} reliable domain${alignedDomains.size === 1 ? '' : 's'} show aligned movement with fresh coverage.`,
     mixed: `Evidence is mixed because ${disagreementSourceCopy ?? 'reliable sources disagree on movement direction'}.`,
-    incomplete: `Evidence is incomplete because only ${contributingDomainCount} contributing domain${contributingDomainCount === 1 ? '' : 's'} meet the high-impact threshold.`,
+    incomplete: `Evidence is incomplete because only ${contributingDomainCount} contributing domain${contributingDomainCount === 1 ? '' : 's'} ${contributingDomainCount === 1 ? 'meets' : 'meet'} the high-impact threshold.`,
     unknown: 'Evidence is unknown: no usable indicators are currently available.',
   };
 
