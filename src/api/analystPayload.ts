@@ -1,3 +1,5 @@
+import { EXPLAINABILITY_THRESHOLDS } from './explainabilityConfig.ts';
+
 export interface TriageNote {
   title: string;
   copy: string;
@@ -45,6 +47,16 @@ export interface DetailExplainabilityGroups {
     domain: string;
     directions: string[];
   }>;
+  source_disagreement_groups: Array<{
+    domain: string;
+    disagreeing_sources: Array<{
+      source: string;
+      movement_direction: string;
+      recency_minutes: number;
+      source_reliability: number;
+    }>;
+    disagreement_types: string[];
+  }>;
 }
 
 const FACTOR_LABELS: Record<string, string> = {
@@ -82,11 +94,38 @@ function toExplainabilityRow(row: Record<string, unknown>): ExplainabilityRow {
   };
 }
 
-export function buildDetailExplainabilityGroups(factors: unknown): DetailExplainabilityGroups {
-  const rows = (Array.isArray(factors) ? factors : [])
+function formatDomain(domain: string): string {
+  const labels: Record<string, string> = {
+    conflictPressure: 'conflict',
+    chokepointStress: 'shipping',
+    oilShockRisk: 'oil',
+    displacementStress: 'displacement',
+    narrativeHeat: 'narrative',
+  };
+  return labels[domain] ?? domain;
+}
+
+function formatSource(source: string): string {
+  const labels: Record<string, string> = {
+    gdelt: 'GDELT',
+    eia: 'EIA',
+    'imf-portwatch': 'PortWatch',
+    acled: 'ACLED',
+    unhcr: 'UNHCR',
+    nasa_firms: 'NASA FIRMS',
+  };
+  return labels[source] ?? source;
+}
+
+function toExplainabilityRows(factors: unknown): ExplainabilityRow[] {
+  return (Array.isArray(factors) ? factors : [])
     .filter((factor): factor is Record<string, unknown> => Boolean(factor && typeof factor === 'object'))
     .map(toExplainabilityRow)
     .sort((a, b) => b.normalized_contribution - a.normalized_contribution);
+}
+
+export function buildDetailExplainabilityGroups(factors: unknown): DetailExplainabilityGroups {
+  const rows = toExplainabilityRows(factors);
 
   const freshestUniqueBySource = new Map<string, ExplainabilityRow>();
   for (const row of [...rows].sort((a, b) => a.recency_minutes - b.recency_minutes)) {
@@ -96,38 +135,117 @@ export function buildDetailExplainabilityGroups(factors: unknown): DetailExplain
   }
 
   const directionsByDomain = new Map<string, Set<string>>();
+  const domainSourceRows = new Map<string, Map<string, ExplainabilityRow>>();
   for (const row of rows) {
     if (!directionsByDomain.has(row.domain)) directionsByDomain.set(row.domain, new Set<string>());
     directionsByDomain.get(row.domain)?.add(row.movement_direction);
+
+    if (!domainSourceRows.has(row.domain)) domainSourceRows.set(row.domain, new Map<string, ExplainabilityRow>());
+    const sourceRows = domainSourceRows.get(row.domain);
+    const existing = sourceRows?.get(row.source);
+    if (!existing || row.normalized_contribution > existing.normalized_contribution) {
+      sourceRows?.set(row.source, row);
+    }
   }
+
+  const sourceDisagreementGroups = [...domainSourceRows.entries()]
+    .map(([domain, bySource]) => {
+      const sourceRows = [...bySource.values()].sort((a, b) => b.normalized_contribution - a.normalized_contribution);
+      if (sourceRows.length < 2) return null;
+      const directions = new Set(sourceRows.map((row) => row.movement_direction));
+      const hasDirectional = directions.size > 1;
+      const hasFresh = sourceRows.some((row) => row.recency_minutes <= EXPLAINABILITY_THRESHOLDS.freshWindowMinutes);
+      const hasStale = sourceRows.some((row) => row.recency_minutes > EXPLAINABILITY_THRESHOLDS.freshWindowMinutes);
+      const hasStaleVsFresh = hasFresh && hasStale;
+      const reliabilityValues = sourceRows.map((row) => row.source_reliability);
+      const reliabilitySpread = Math.max(...reliabilityValues) - Math.min(...reliabilityValues);
+      const hasReliabilityWeighted = hasDirectional && reliabilitySpread >= EXPLAINABILITY_THRESHOLDS.reliabilitySpreadThreshold;
+      const disagreementTypes = [
+        hasDirectional ? 'directional' : null,
+        hasStaleVsFresh ? 'stale-vs-fresh' : null,
+        hasReliabilityWeighted ? 'reliability-weighted' : null,
+      ].filter((value): value is string => Boolean(value));
+      if (disagreementTypes.length === 0) return null;
+      return {
+        domain,
+        disagreeing_sources: sourceRows.map((row) => ({
+          source: row.source,
+          movement_direction: row.movement_direction,
+          recency_minutes: row.recency_minutes,
+          source_reliability: row.source_reliability,
+        })),
+        disagreement_types: disagreementTypes,
+      };
+    })
+    .filter((value): value is NonNullable<typeof value> => Boolean(value));
 
   return {
     top_contributing_factors: rows.slice(0, 6),
     freshest_contributing_sources: [...freshestUniqueBySource.values()].slice(0, 4),
-    stale_high_impact_sources: rows.filter((row) => row.recency_minutes > 720 && row.normalized_contribution >= 60).slice(0, 4),
+    stale_high_impact_sources: rows
+      .filter(
+        (row) => row.recency_minutes > EXPLAINABILITY_THRESHOLDS.staleHighImpactRecencyMinutes
+          && row.normalized_contribution >= EXPLAINABILITY_THRESHOLDS.normalizedContributionFloor,
+      )
+      .slice(0, 4),
     mixed_signal_indicators: [...directionsByDomain.entries()]
       .filter(([, directions]) => directions.size > 1)
       .map(([domain, directions]) => ({ domain, directions: [...directions].sort() })),
+    source_disagreement_groups: sourceDisagreementGroups,
   };
 }
 
-export function deriveDetailExplainabilitySummary(input: Pick<TriageInput, 'freshness_state' | 'confidence_band'> & { evidence_state: string }): DetailExplainabilitySummary {
+export function deriveDetailExplainabilitySummary(
+  input: Pick<TriageInput, 'freshness_state' | 'confidence_band'> & {
+    evidence_state: string;
+    factors?: unknown;
+    explainability_groups?: DetailExplainabilityGroups;
+  },
+): DetailExplainabilitySummary {
+  const rows = toExplainabilityRows(input.factors);
+  const highImpactRows = rows.filter((row) => row.normalized_contribution >= EXPLAINABILITY_THRESHOLDS.normalizedContributionFloor);
+  const reliableRows = highImpactRows.filter((row) => row.source_reliability >= EXPLAINABILITY_THRESHOLDS.reliableSourceFloor);
+  const contributingDomainCount = new Set(highImpactRows.map((row) => row.domain)).size;
+  const freshReliableDomainCount = new Set(
+    reliableRows
+      .filter((row) => row.recency_minutes <= EXPLAINABILITY_THRESHOLDS.freshWindowMinutes)
+      .map((row) => row.domain),
+  ).size;
+  const staleReliableDomainCount = new Set(
+    reliableRows
+      .filter((row) => row.recency_minutes > EXPLAINABILITY_THRESHOLDS.freshWindowMinutes)
+      .map((row) => row.domain),
+  ).size;
+  const mixedDomains = input.explainability_groups?.mixed_signal_indicators ?? [];
+  const alignedDomains = new Set(
+    reliableRows
+      .map((row) => row.domain)
+      .filter((domain) => !mixedDomains.some((item) => item.domain === domain)),
+  );
+
   const freshnessCopyByState: Record<string, string> = {
-    fresh: 'Freshness is fresh because current contributing evidence is within the expected recency window.',
-    aging: 'Freshness is aging because part of the contributing evidence is outside the fresh recency window.',
-    stale: 'Freshness is degraded because key contributing evidence is outside the aging recency window.',
+    fresh: `Freshness is fresh because ${freshReliableDomainCount || 1} reliable contributing domain${freshReliableDomainCount === 1 ? ' is' : 's are'} inside the fresh window and no high-impact domains are stale.`,
+    aging: `Freshness is aging because only ${freshReliableDomainCount} reliable domain${freshReliableDomainCount === 1 ? '' : 's'} ${freshReliableDomainCount === 1 ? 'has' : 'have'} fresh inputs while ${staleReliableDomainCount} other contributing domain${staleReliableDomainCount === 1 ? '' : 's'} ${staleReliableDomainCount === 1 ? 'is' : 'are'} outside the fresh window.`,
+    stale: `Freshness is degraded because ${staleReliableDomainCount || 1} high-impact reliable domain${staleReliableDomainCount === 1 ? ' is' : 's are'} outside the fresh window and only ${freshReliableDomainCount} reliable domain${freshReliableDomainCount === 1 ? ' remains' : 's remain'} fresh.`,
   };
 
   const confidenceCopyByBand: Record<string, string> = {
-    high: 'Confidence is high: multiple reliable sources and domains agree on the current direction.',
-    medium: 'Confidence is medium: some reliable domain agreement exists, but coverage is not broad.',
-    low: 'Confidence is low: multiple reliable domains do not yet agree strongly enough for high confidence.',
+    high: `Confidence is high because ${alignedDomains.size} reliable domain${alignedDomains.size === 1 ? '' : 's'} align and disagreement is limited.`,
+    medium: `Confidence is medium because ${[...alignedDomains].map(formatDomain).slice(0, 2).join(' and ') || 'reliable indicators'} align, but ${contributingDomainCount < 3 ? 'coverage is limited' : 'cross-domain coverage is uneven'}.`,
+    low: `Confidence is low because ${input.explainability_groups?.source_disagreement_groups.length ?? 0} domain disagreement cluster${(input.explainability_groups?.source_disagreement_groups.length ?? 0) === 1 ? '' : 's'} are active and only ${alignedDomains.size} reliable domain${alignedDomains.size === 1 ? '' : 's'} align.`,
   };
 
+  const disagreement = input.explainability_groups?.source_disagreement_groups[0];
+  const disagreementSourceCopy = disagreement
+    ? disagreement.disagreeing_sources
+      .slice(0, 3)
+      .map((row) => `${formatSource(row.source)} is ${row.movement_direction}`)
+      .join(' while ')
+    : null;
   const evidenceCopyByState: Record<string, string> = {
-    confirmed: 'Evidence is confirmed: reliable indicators are aligned and sufficiently complete.',
-    mixed: 'Evidence is mixed: reliable indicators disagree on movement direction.',
-    incomplete: 'Evidence is incomplete: available reliable indicators are limited.',
+    confirmed: `Evidence is confirmed because ${alignedDomains.size || 1} reliable domain${alignedDomains.size === 1 ? '' : 's'} show aligned movement with fresh coverage.`,
+    mixed: `Evidence is mixed because ${disagreementSourceCopy ?? 'reliable sources disagree on movement direction'}.`,
+    incomplete: `Evidence is incomplete because only ${contributingDomainCount} contributing domain${contributingDomainCount === 1 ? '' : 's'} meet the high-impact threshold.`,
     unknown: 'Evidence is unknown: no usable indicators are currently available.',
   };
 

@@ -33,4 +33,7 @@ test('analyst console includes map-table coordination and triage readability aff
   assert.ok(html.includes('id="explainability-factors-table"'));
   assert.ok(html.includes('id="explainability-state-cards"'));
   assert.ok(html.includes('id="freshest-sources-table"'));
+  assert.ok(html.includes('id="source-disagreement-table"'));
+  assert.ok(html.includes('id="source-contributions-table"'));
+  assert.ok(html.includes("source-contributions-table"));
 });

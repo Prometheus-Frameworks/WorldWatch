@@ -152,6 +152,7 @@ test('getRegionDetail assembles score, deltas, recent signals and history', asyn
   assert.equal(Array.isArray((detail as Record<string, unknown>).triage_notes), true);
   assert.equal((detail as { explainability_summary: Record<string, string> }).explainability_summary.freshness_state, 'fresh');
   assert.equal(Array.isArray((detail as { explainability_groups: Record<string, unknown> }).explainability_groups.top_contributing_factors as unknown[]), true);
+  assert.equal(Array.isArray((detail as { explainability_groups: Record<string, unknown> }).explainability_groups.source_disagreement_groups as unknown[]), true);
   const history = (detail as { history: Array<Record<string, unknown>> }).history;
   assert.equal(history[0].confidence_band, 'high');
   assert.equal(history[0].rank_movement, 3);

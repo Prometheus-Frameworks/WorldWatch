@@ -282,6 +282,8 @@ export async function getRegionDetail(db: QueryableDb, slug: string, historyLimi
     [regionId, historyLimit],
   );
 
+  const explainabilityGroups = buildDetailExplainabilityGroups(head.factors_json);
+
   return {
     latest_score: {
       slug: head.slug,
@@ -301,7 +303,7 @@ export async function getRegionDetail(db: QueryableDb, slug: string, historyLimi
     },
     factor_payload: head.factors_json,
     second_order_effects: head.second_order_effects_json,
-    explainability_groups: buildDetailExplainabilityGroups(head.factors_json),
+    explainability_groups: explainabilityGroups,
     latest_delta: {
       delta_24h: head.delta_24h,
       delta_7d: head.delta_7d,
@@ -318,6 +320,8 @@ export async function getRegionDetail(db: QueryableDb, slug: string, historyLimi
       freshness_state: String(head.freshness_state),
       confidence_band: String(head.confidence_band),
       evidence_state: String(head.evidence_state),
+      factors: head.factors_json,
+      explainability_groups: explainabilityGroups,
     }),
     recent_signals: recentSignals.rows,
     source_contributions: sourceContributions.rows,
@@ -575,6 +579,7 @@ export async function getOpsHealth(db: QueryableDb): Promise<Record<string, unkn
 
   const staleSources = sourceFreshness.filter((row) => row.stale).map((row) => row.source_name);
 
+
   return {
     status: latestCycle?.status === 'failed' || staleSources.length > 0 ? 'degraded' : 'ok',
     latest_cycle: latestCycle,
@@ -641,6 +646,7 @@ export async function getOpsSummary(db: QueryableDb): Promise<OpsSummary> {
 
   const staleSources = sourceFreshness.filter((row) => row.stale).map((row) => row.source_name);
   const snapshotRow = latestSnapshotStats.rows[0];
+
 
   return {
     latest_cycle: latestCycle,
