@@ -54,6 +54,7 @@ export function getDetailSignature(detail: Record<string, unknown> | null): stri
     factors: Array.isArray(detail.factor_payload) ? detail.factor_payload.length : 0,
     secondOrder: Array.isArray(detail.second_order_effects) ? detail.second_order_effects.length : 0,
     signals: Array.isArray(detail.recent_signals) ? detail.recent_signals.length : 0,
+    sourceContributions: Array.isArray(detail.source_contributions) ? detail.source_contributions.length : 0,
     triage: Array.isArray(detail.triage_notes) ? detail.triage_notes : [],
     explainabilitySummary: detail.explainability_summary ?? null,
     explainabilityGroups: detail.explainability_groups ?? null,

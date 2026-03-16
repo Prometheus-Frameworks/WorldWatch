@@ -194,8 +194,14 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
         <table id="signals-table"></table>
       </section>
       <section class="detail-section">
+        <h3>Source contributions</h3>
+        <p class="detail-subtitle">Per-source count, freshness, value, and reliability over the recent window.</p>
+        <table id="source-contributions-table"></table>
+      </section>
+      <section class="detail-section">
         <h3>Explainability groupings</h3>
-        <p class="detail-subtitle">Freshest sources, stale high-impact contributors, and mixed-signal domains.</p>
+        <p class="detail-subtitle">Freshest sources, stale high-impact contributors, mixed-signal domains, and source disagreement clusters.</p>
+        <table id="source-disagreement-table"></table>
         <table id="freshest-sources-table"></table>
         <table id="stale-high-impact-table"></table>
         <table id="mixed-indicators-table"></table>
