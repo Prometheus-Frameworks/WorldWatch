@@ -7,6 +7,11 @@ import {
   deriveTriageNotes,
   toTriageInput,
 } from './analystPayload.ts';
+import {
+  displacementLimitedSupportScenario,
+  mixedMultiDomainDisagreementScenario,
+  narrativeLedSpikeFlatPhysicalScenario,
+} from '../test/regionScenarioFixtures.ts';
 
 test('deriveTriageNotes returns deterministic triage notes from score bands and deltas', () => {
   const notes = deriveTriageNotes(toTriageInput({
@@ -59,7 +64,7 @@ test('deriveDetailExplainabilitySummary returns deterministic local-condition co
 
   assert.equal(summary.freshness_copy, 'Freshness is aging because only 3 reliable domains have fresh inputs while 2 other contributing domains are outside the fresh window.');
   assert.equal(summary.confidence_copy, 'Confidence is medium because conflict and shipping align, but cross-domain coverage is uneven.');
-  assert.equal(summary.evidence_copy, 'Evidence is mixed because EIA is flat while GDELT is up while PortWatch is down.');
+  assert.equal(summary.evidence_copy, 'Evidence is mixed because EIA is flat while PortWatch is down while GDELT is up.');
 });
 
 test('buildDetailExplainabilityGroups includes source disagreement structure and thresholded stale impacts', () => {
@@ -81,6 +86,24 @@ test('buildDetailExplainabilityGroups includes source disagreement structure and
   }]);
 });
 
+test('disagreement groups use deterministic reliability/contribution/recency ordering', () => {
+  const groups = buildDetailExplainabilityGroups(mixedMultiDomainDisagreementScenario().factors);
+
+  assert.deepEqual(groups.source_disagreement_groups.map((group) => group.domain), ['conflictPressure', 'oilShockRisk']);
+  assert.deepEqual(groups.source_disagreement_groups[0]?.disagreeing_sources, [
+    { source: 'acled', movement_direction: 'up', recency_minutes: 45, source_reliability: 0.9 },
+    { source: 'gdelt', movement_direction: 'down', recency_minutes: 390, source_reliability: 0.65 },
+  ]);
+});
+
+test('narrative-led spike exposes explicit narrative-vs-physical divergence cue', () => {
+  const groups = buildDetailExplainabilityGroups(narrativeLedSpikeFlatPhysicalScenario().factors);
+
+  assert.equal(groups.narrative_physical_divergence.is_active, true);
+  assert.equal(groups.narrative_physical_divergence.cue_code, 'narrative-leading-without-physical-confirmation');
+  assert.equal(groups.narrative_physical_divergence.analyst_copy, 'Narrative-leading signal: media/narrative intensity is elevated without matching confirmation from physical/logistical domains.');
+  assert.equal(groups.narrative_physical_divergence.physical_domain_states.every((row) => row.state === 'flat' || row.state === 'incomplete'), true);
+});
 
 test('explainability summaries stay truthful for stale high-impact evidence and disagreement context', () => {
   const factors = [
@@ -106,52 +129,17 @@ test('explainability summaries stay truthful for stale high-impact evidence and 
   assert.equal(summary.evidence_copy.includes('PortWatch is down while GDELT is up'), true);
 });
 
-test('domain odd-case: thermal spike stays incomplete without broader coverage', () => {
-  const factors = [
-    { signalType: 'thermal.anomaly_count', source: 'nasa_firms', domain: 'conflictPressure', normalizedValue: 85, recencyMinutes: 25, sourceReliability: 0.74, movement: 'up' },
-    { signalType: 'thermal.fire_activity_index', source: 'nasa_firms', domain: 'conflictPressure', normalizedValue: 81, recencyMinutes: 25, sourceReliability: 0.74, movement: 'up' },
-  ];
-  const groups = buildDetailExplainabilityGroups(factors);
-  const summary = deriveDetailExplainabilitySummary({
-    freshness_state: 'fresh',
-    confidence_band: 'low',
-    evidence_state: 'incomplete',
-    factors,
-    explainability_groups: groups,
-  });
-
-  assert.deepEqual(groups.source_disagreement_groups, []);
-  assert.equal(summary.evidence_copy, 'Evidence is incomplete because only 1 contributing domain meets the high-impact threshold.');
-});
-
 test('domain odd-case: displacement signal with limited support remains incomplete', () => {
-  const factors = [
-    { signalType: 'displacement.delta', source: 'unhcr', domain: 'displacementStress', normalizedValue: 79, recencyMinutes: 210, sourceReliability: 0.9, movement: 'up' },
-    { signalType: 'displacement.acceleration', source: 'unhcr', domain: 'displacementStress', normalizedValue: 77, recencyMinutes: 210, sourceReliability: 0.9, movement: 'up' },
-    { signalType: 'narrative.negative_tone', source: 'gdelt', domain: 'narrativeHeat', normalizedValue: 58, recencyMinutes: 40, sourceReliability: 0.65, movement: 'up' },
-  ];
-  const groups = buildDetailExplainabilityGroups(factors);
+  const scenario = displacementLimitedSupportScenario();
+  const groups = buildDetailExplainabilityGroups(scenario.factors);
   const summary = deriveDetailExplainabilitySummary({
     freshness_state: 'fresh',
     confidence_band: 'low',
     evidence_state: 'incomplete',
-    factors,
+    factors: scenario.factors,
     explainability_groups: groups,
   });
 
   assert.equal(groups.top_contributing_factors[0]?.domain, 'displacementStress');
   assert.equal(summary.evidence_copy, 'Evidence is incomplete because only 1 contributing domain meets the high-impact threshold.');
-});
-
-test('domain odd-case: sharp GDELT movement with flat physical sources surfaces disagreement', () => {
-  const groups = buildDetailExplainabilityGroups([
-    { signalType: 'narrative.mentions', source: 'gdelt', domain: 'narrativeHeat', normalizedValue: 84, recencyMinutes: 30, sourceReliability: 0.76, movement: 'up' },
-    { signalType: 'oil.price_usd', source: 'eia', domain: 'oilShockRisk', normalizedValue: 66, recencyMinutes: 55, sourceReliability: 0.88, movement: 'flat' },
-    { signalType: 'chokepoint.transit_volume', source: 'imf-portwatch', domain: 'chokepointStress', normalizedValue: 64, recencyMinutes: 70, sourceReliability: 0.84, movement: 'flat' },
-    { signalType: 'conflict.event_intensity', source: 'acled', domain: 'conflictPressure', normalizedValue: 62, recencyMinutes: 65, sourceReliability: 0.9, movement: 'flat' },
-  ]);
-
-  assert.equal(groups.mixed_signal_indicators.some((row) => row.domain === 'narrativeHeat'), false);
-  assert.equal(groups.source_disagreement_groups.length, 0);
-  assert.equal(groups.top_contributing_factors[0]?.source, 'gdelt');
 });

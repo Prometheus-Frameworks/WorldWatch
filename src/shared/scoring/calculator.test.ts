@@ -9,6 +9,11 @@ import {
   deriveFreshnessState,
 } from './calculator.ts';
 import type { SubScores } from './types.ts';
+import {
+  freshVsStaleUnevenCoverageScenario,
+  highSeverityLowConfidenceScenario,
+  singleSourceSpikeVsBroaderStaleSupportScenario,
+} from '../../test/regionScenarioFixtures.ts';
 
 const baseSubScores: SubScores = {
   conflictPressure: 68,
@@ -49,11 +54,7 @@ test('deriveEvidenceState returns mixed when reliable datasets conflict', () => 
 });
 
 test('deriveFreshnessState uses domain-aware recency so one fresh source cannot dominate', () => {
-  const freshness = deriveFreshnessState([
-    { source: 'acled', domain: 'conflictPressure', observedSignals: 1, isMovingUp: true, isReliable: true, ageMinutes: 15 },
-    { source: 'eia', domain: 'oilShockRisk', observedSignals: 1, isMovingUp: true, isReliable: true, ageMinutes: 800 },
-    { source: 'unhcr', domain: 'displacementAcceleration', observedSignals: 1, isMovingUp: true, isReliable: true, ageMinutes: 900 },
-  ]);
+  const freshness = deriveFreshnessState(freshVsStaleUnevenCoverageScenario().signals);
 
   assert.equal(freshness, 'stale');
 });
@@ -68,11 +69,7 @@ test('deriveFreshnessState honors source coverage in single-domain fallback', ()
 });
 
 test('deriveFreshnessState keeps one fresh low-signal source from outranking broad stale coverage', () => {
-  const freshness = deriveFreshnessState([
-    { source: 'acled', domain: 'conflictPressure', observedSignals: 1, isMovingUp: true, isReliable: true, ageMinutes: 10 },
-    { source: 'gdelt', domain: 'conflictPressure', observedSignals: 8, isMovingUp: true, isReliable: true, ageMinutes: 780 },
-    { source: 'nasa-firms', domain: 'conflictPressure', observedSignals: 7, isMovingUp: true, isReliable: true, ageMinutes: 820 },
-  ]);
+  const freshness = deriveFreshnessState(singleSourceSpikeVsBroaderStaleSupportScenario().signals);
 
   assert.equal(freshness, 'stale');
 });
@@ -98,19 +95,9 @@ test('deriveConfidenceBand degrades under reliable-source disagreement regardles
 });
 
 test('high score can remain low confidence and mixed evidence during reliable disagreement', () => {
-  const highRiskSubScores: SubScores = {
-    conflictPressure: 94,
-    chokepointStress: 89,
-    oilShockRisk: 85,
-    displacementAcceleration: 82,
-    narrativeHeat: 90,
-  };
+  const scenario = highSeverityLowConfidenceScenario();
 
-  const result = calculateRegionScore(highRiskSubScores, [
-    { source: 'acled', domain: 'conflictPressure', observedSignals: 3, isMovingUp: true, isReliable: true, ageMinutes: 60 },
-    { source: 'imf-portwatch', domain: 'chokepointStress', observedSignals: 2, isMovingUp: true, isReliable: true, ageMinutes: 75 },
-    { source: 'eia', domain: 'oilShockRisk', observedSignals: 2, isMovingUp: false, isReliable: true, ageMinutes: 80 },
-  ]);
+  const result = calculateRegionScore(scenario.subScores as SubScores, scenario.signals);
 
   assert.equal(result.statusBand, 'critical');
   assert.equal(result.confidenceBand, 'low');

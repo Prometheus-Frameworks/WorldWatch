@@ -1,9 +1,9 @@
 # TASK_QUEUE
 
 ## Now
-- Build reusable edge-case region scenario fixtures/helpers for scoring + explainability tests (freshness, disagreement, odd-domain combinations).
-- Add deterministic explainability refinements for narrative-vs-physical/logistical divergence labeling.
-- Verify disagreement summary copy ordering remains stable when multiple domains disagree simultaneously.
+- Validate narrative-vs-physical divergence cue behavior against historical disagreement-heavy snapshots.
+- Add targeted analyst-quality checks around trust-cue clarity and escalation discipline.
+- Maintain deterministic fixture coverage as new explainability edge cases emerge.
 
 ## Next
 - Add lightweight UX validation checklist for analyst detail (speed to interpret, misread rate, escalation confidence).

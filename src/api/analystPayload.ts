@@ -39,6 +39,11 @@ export interface DetailExplainabilitySummary {
   evidence_copy: string;
 }
 
+interface DomainSignalState {
+  domain: string;
+  state: 'flat' | 'incomplete' | 'contradictory' | 'rising';
+}
+
 export interface DetailExplainabilityGroups {
   top_contributing_factors: ExplainabilityRow[];
   freshest_contributing_sources: ExplainabilityRow[];
@@ -57,6 +62,13 @@ export interface DetailExplainabilityGroups {
     }>;
     disagreement_types: string[];
   }>;
+  narrative_physical_divergence: {
+    is_active: boolean;
+    cue_code: 'narrative-leading-without-physical-confirmation' | 'none';
+    analyst_copy: string;
+    narrative_domain: string;
+    physical_domain_states: DomainSignalState[];
+  };
 }
 
 const FACTOR_LABELS: Record<string, string> = {
@@ -124,6 +136,48 @@ function toExplainabilityRows(factors: unknown): ExplainabilityRow[] {
     .sort((a, b) => b.normalized_contribution - a.normalized_contribution);
 }
 
+function compareDisagreementRows(a: ExplainabilityRow, b: ExplainabilityRow): number {
+  if (b.source_reliability !== a.source_reliability) return b.source_reliability - a.source_reliability;
+  if (b.normalized_contribution !== a.normalized_contribution) return b.normalized_contribution - a.normalized_contribution;
+  if (a.recency_minutes !== b.recency_minutes) return a.recency_minutes - b.recency_minutes;
+  return a.source.localeCompare(b.source);
+}
+
+function domainSignalState(rows: ExplainabilityRow[]): DomainSignalState['state'] {
+  if (rows.length === 0) return 'incomplete';
+  const directions = new Set(rows.map((row) => row.movement_direction));
+  if (directions.size === 1 && directions.has('flat')) return 'flat';
+  if (directions.has('up') && directions.has('down')) return 'contradictory';
+  if (directions.size > 1 && directions.has('flat') && (directions.has('up') || directions.has('down'))) return 'contradictory';
+  if (directions.size === 1 && directions.has('up')) return 'rising';
+  return 'contradictory';
+}
+
+function buildNarrativePhysicalDivergence(rows: ExplainabilityRow[]) {
+  const highImpactReliableRows = rows.filter(
+    (row) => row.normalized_contribution >= EXPLAINABILITY_THRESHOLDS.normalizedContributionFloor
+      && row.source_reliability >= EXPLAINABILITY_THRESHOLDS.reliableSourceFloor,
+  );
+  const narrativeRows = highImpactReliableRows.filter((row) => row.domain === 'narrativeHeat' && row.movement_direction === 'up');
+  const physicalDomains = ['conflictPressure', 'chokepointStress', 'oilShockRisk', 'displacementStress'];
+  const physicalDomainStates = physicalDomains.map((domain) => ({
+    domain,
+    state: domainSignalState(highImpactReliableRows.filter((row) => row.domain === domain)),
+  }));
+  const hasPhysicalConfirmation = physicalDomainStates.some((row) => row.state === 'rising');
+  const isActive = narrativeRows.length > 0 && !hasPhysicalConfirmation;
+
+  return {
+    is_active: isActive,
+    cue_code: isActive ? 'narrative-leading-without-physical-confirmation' : 'none',
+    analyst_copy: isActive
+      ? 'Narrative-leading signal: media/narrative intensity is elevated without matching confirmation from physical/logistical domains.'
+      : '',
+    narrative_domain: 'narrativeHeat',
+    physical_domain_states: physicalDomainStates,
+  } as const;
+}
+
 export function buildDetailExplainabilityGroups(factors: unknown): DetailExplainabilityGroups {
   const rows = toExplainabilityRows(factors);
 
@@ -143,14 +197,14 @@ export function buildDetailExplainabilityGroups(factors: unknown): DetailExplain
     if (!domainSourceRows.has(row.domain)) domainSourceRows.set(row.domain, new Map<string, ExplainabilityRow>());
     const sourceRows = domainSourceRows.get(row.domain);
     const existing = sourceRows?.get(row.source);
-    if (!existing || row.normalized_contribution > existing.normalized_contribution) {
+    if (!existing || compareDisagreementRows(row, existing) < 0) {
       sourceRows?.set(row.source, row);
     }
   }
 
   const sourceDisagreementGroups = [...domainSourceRows.entries()]
     .map(([domain, bySource]) => {
-      const sourceRows = [...bySource.values()].sort((a, b) => b.normalized_contribution - a.normalized_contribution);
+      const sourceRows = [...bySource.values()].sort(compareDisagreementRows);
       if (sourceRows.length < 2) return null;
       const directions = new Set(sourceRows.map((row) => row.movement_direction));
       const hasDirectional = directions.size > 1;
@@ -168,6 +222,9 @@ export function buildDetailExplainabilityGroups(factors: unknown): DetailExplain
       if (disagreementTypes.length === 0) return null;
       return {
         domain,
+        max_reliability: Math.max(...reliabilityValues),
+        max_contribution: Math.max(...sourceRows.map((row) => row.normalized_contribution)),
+        min_recency: Math.min(...sourceRows.map((row) => row.recency_minutes)),
         disagreeing_sources: sourceRows.map((row) => ({
           source: row.source,
           movement_direction: row.movement_direction,
@@ -177,7 +234,14 @@ export function buildDetailExplainabilityGroups(factors: unknown): DetailExplain
         disagreement_types: disagreementTypes,
       };
     })
-    .filter((value): value is NonNullable<typeof value> => Boolean(value));
+    .filter((value): value is NonNullable<typeof value> => Boolean(value))
+    .sort((a, b) => {
+      if (b.max_reliability !== a.max_reliability) return b.max_reliability - a.max_reliability;
+      if (b.max_contribution !== a.max_contribution) return b.max_contribution - a.max_contribution;
+      if (a.min_recency !== b.min_recency) return a.min_recency - b.min_recency;
+      return a.domain.localeCompare(b.domain);
+    })
+    .map(({ domain, disagreeing_sources, disagreement_types }) => ({ domain, disagreeing_sources, disagreement_types }));
 
   return {
     top_contributing_factors: rows.slice(0, 6),
@@ -192,6 +256,7 @@ export function buildDetailExplainabilityGroups(factors: unknown): DetailExplain
       .filter(([, directions]) => directions.size > 1)
       .map(([domain, directions]) => ({ domain, directions: [...directions].sort() })),
     source_disagreement_groups: sourceDisagreementGroups,
+    narrative_physical_divergence: buildNarrativePhysicalDivergence(rows),
   };
 }
 

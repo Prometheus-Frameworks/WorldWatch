@@ -14,18 +14,21 @@
 - Deterministic ingestion -> scoring -> API flow with test coverage in runtime, API queries/payload shaping, scoring calculator, and snapshot jobs.
 - Posture enforcement for `public_read_only` (manual cycle trigger disabled).
 - Stable internal analyst + ops workflow powered by consolidated analyst payload (`/api/analyst/dashboard`).
+- Explainability disagreement ordering and narrative-leading divergence signaling are now deterministic and inspectable.
 
 ### Still prototype / evolving
 - Internal map is supporting context, not the primary workflow.
 - Source quality handling is deterministic but still dependent on upstream source freshness/availability.
-- Explainability language for multi-domain disagreement is deterministic but still heuristic in phrasing.
+- Detail interpretation remains analyst-dependent under heavy multi-domain disagreement.
 
 ## Recently completed sprints (latest)
 - Analyst detail readability/scanability pass tightened hierarchy and spacing while preserving table/detail-first workflow (complete).
-- Explainability quick-scan cards now foreground freshness/confidence/evidence and mixed-signal/stale-risk posture before dense tables.
-- Source disagreement and source contribution sections were reformatted into more scannable structured tables (domain/type/sources/direction/recency/reliability).
 - Validation + edge-case pressure-test pass landed for freshness, confidence/severity mismatch, disagreement integrity, and domain odd cases in scoring/explainability tests.
-- Map/table sync behavior and deterministic scoring/provenance model were preserved.
+- Explainability hardening pass landed:
+  - reusable region-scenario test fixtures,
+  - deterministic narrative-vs-physical divergence marker in detail payload,
+  - deterministic disagreement summary ordering,
+  - analyst detail trust-cue rendering in existing workflow.
 
 ## Known weak spots
 - Detail pane can be cognitively dense under mixed signals and disagreement-heavy regions.
@@ -33,6 +36,6 @@
 - Freshness degradation can drive stale-high-risk states that need operator reruns and analyst verification.
 
 ## Immediate next priorities
-1. Add reusable region-scenario fixtures for analyst-trust edge-case validation to keep future scoring/explainability changes comparable.
-2. Tighten explainability phrasing for multi-domain disagreement while preserving deterministic, inspectable derivation.
-3. Keep posture/policy language and enforcement behavior aligned during UI/API changes.
+1. Run another focused analyst-quality validation loop to measure trust-cue usefulness and misread reduction.
+2. Add replay-oriented regression checks for disagreement-heavy historical snapshots.
+3. Keep posture/policy language and enforcement behavior aligned during future UI/API changes.
