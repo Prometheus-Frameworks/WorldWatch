@@ -1,10 +1,10 @@
 # SESSION_STATE
 
 ## Latest landed sprint
-- Explainability-focused sprint landed: factor provenance, deterministic state copy, and source disagreement grouping in analyst detail.
+- Analyst detail readability sprint landed: quick-scan explainability band, clearer section hierarchy, and improved source disagreement/contribution scanability.
 
 ## Current focus
-- Analyst detail readability/scanability and interpretation validation while preserving deterministic explainability.
+- Validate the new quick-scan + dense-table flow across mixed-signal and stale-high-risk snapshots while preserving deterministic explainability.
 
 ## Current risks
 - Dense detail layout can slow analyst review and increase interpretation friction.

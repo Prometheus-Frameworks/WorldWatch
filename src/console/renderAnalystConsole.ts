@@ -60,11 +60,21 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
     .detail-header-card { border: 1px solid #33445c; border-radius: 6px; padding: 10px; margin-bottom: 10px; background: #141c28; }
     .detail-kpis { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
     .detail-kpi { border: 1px solid #3a465d; border-radius: 999px; padding: 2px 8px; font-size: 12px; background: #111722; }
-    .detail-section { border: 1px solid #2f3b4d; border-radius: 6px; padding: 8px; background: #111722; }
+    .detail-section { border: 1px solid #2f3b4d; border-radius: 6px; padding: 10px; background: #111722; }
     .detail-section h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.03em; color: #a9c3e0; }
+    .detail-section + .detail-section { margin-top: 0; }
     .state-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; }
     .state-card { border: 1px solid #33445c; border-radius: 6px; padding: 8px; background: #121c2c; }
     .state-card p { margin: 4px 0; font-size: 12px; }
+    .state-card strong { display: inline-block; min-width: 88px; }
+    .detail-priority-band { border: 1px solid #4d6d95; border-radius: 6px; padding: 10px; margin-bottom: 12px; background: #132033; }
+    .detail-priority-band h3 { margin-bottom: 6px; }
+    .scan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+    .scan-card { border: 1px solid #3b4f6b; border-radius: 6px; padding: 8px; background: #101a2a; }
+    .scan-card p { margin: 0; font-size: 12px; }
+    .scan-label { color: #9eb7d8; text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; }
+    .scan-value { font-size: 16px; font-weight: 700; margin-top: 4px; }
+    .scan-note { color: #b8c9dd; margin-top: 4px; }
     .detail-subtitle { margin: 0 0 8px; font-size: 12px; color: #8ea3bf; }
     .subscore-grid { display: grid; grid-template-columns: 1fr; gap: 7px; }
     .subscore-row { border: 1px solid #2f3b4d; border-radius: 6px; padding: 7px; background: #0f141d; }
@@ -73,6 +83,9 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
     .subscore-bar span { display: block; height: 100%; background: linear-gradient(90deg, #4ea4f1, #82d2f7); }
     .triage-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-top: 10px; }
     .triage-note { border: 1px solid #33445c; border-radius: 6px; padding: 8px; background: #121c2c; font-size: 12px; }
+    .source-bullets { margin: 0; padding-left: 16px; }
+    .source-bullets li { margin: 0 0 4px; }
+    .muted-cell { color: #9ca8b7; }
     .map-guidance { margin: 6px 0 0; font-size: 12px; color: #9ca8b7; }
     .policy-footer { margin-top: 16px; border-top: 1px solid #2f3b4d; padding-top: 10px; color: #a7b7cb; font-size: 12px; }
     @media (max-width: 1024px) {
@@ -164,24 +177,40 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
   <section class="card" id="region-detail" hidden>
     <div id="detail-header" class="detail-header-card"></div>
 
-    <div class="detail-grid">
-      <section class="detail-section">
-        <h3>Sub-scores</h3>
-        <p class="detail-subtitle">Largest bars indicate strongest risk pressure.</p>
-        <div id="subscores-list" class="subscore-grid"></div>
-      </section>
-      <section class="detail-section">
-        <h3>Top contributing factors</h3>
-        <p class="detail-subtitle">Highest normalized contributors with provenance and movement.</p>
-        <table id="explainability-factors-table"></table>
-      </section>
-    </div>
+    <section class="detail-priority-band">
+      <h3>Explainability quick scan</h3>
+      <p class="detail-subtitle">Prioritize mixed-signal and stale high-risk checks before deep factor review.</p>
+      <div id="explainability-scan-cards" class="scan-grid"></div>
+    </section>
 
     <div class="detail-grid">
       <section class="detail-section">
         <h3>Freshness / confidence / evidence</h3>
         <p class="detail-subtitle">Deterministic state copy tied to the current payload.</p>
         <div id="explainability-state-cards" class="state-grid"></div>
+      </section>
+      <section class="detail-section">
+        <h3>Sub-scores</h3>
+        <p class="detail-subtitle">Largest bars indicate strongest risk pressure.</p>
+        <div id="subscores-list" class="subscore-grid"></div>
+      </section>
+    </div>
+
+    <div class="detail-grid">
+      <section class="detail-section">
+        <h3>Top contributing factors</h3>
+        <p class="detail-subtitle">Highest normalized contributors with provenance and movement.</p>
+        <table id="explainability-factors-table"></table>
+      </section>
+      <section class="detail-section">
+        <h3>Source contributions</h3>
+        <p class="detail-subtitle">Compact per-source comparison for count, latest event, value, and reliability.</p>
+        <table id="source-contributions-table"></table>
+      </section>
+      <section class="detail-section">
+        <h3>Source disagreement groups</h3>
+        <p class="detail-subtitle">Scan by domain, disagreement type, source direction, recency, and reliability.</p>
+        <table id="source-disagreement-table"></table>
       </section>
       <section class="detail-section">
         <h3>Second-order effects</h3>
@@ -194,14 +223,8 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
         <table id="signals-table"></table>
       </section>
       <section class="detail-section">
-        <h3>Source contributions</h3>
-        <p class="detail-subtitle">Per-source count, freshness, value, and reliability over the recent window.</p>
-        <table id="source-contributions-table"></table>
-      </section>
-      <section class="detail-section">
         <h3>Explainability groupings</h3>
         <p class="detail-subtitle">Freshest sources, stale high-impact contributors, mixed-signal domains, and source disagreement clusters.</p>
-        <table id="source-disagreement-table"></table>
         <table id="freshest-sources-table"></table>
         <table id="stale-high-impact-table"></table>
         <table id="mixed-indicators-table"></table>

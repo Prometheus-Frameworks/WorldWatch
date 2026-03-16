@@ -21,10 +21,10 @@
 - Source quality handling is deterministic but still dependent on upstream source freshness/availability.
 
 ## Recently completed sprints (latest)
-- Scoring freshness/evidence and provenance were refined.
-- Analyst detail explainability states and factor provenance were added.
-- Source disagreement handling was expanded in analyst detail explainability.
-- Analyst client architecture was modularized and payload shaping tightened.
+- Analyst detail readability/scanability pass tightened hierarchy and spacing while preserving table/detail-first workflow.
+- Explainability quick-scan cards now foreground freshness/confidence/evidence and mixed-signal/stale-risk posture before dense tables.
+- Source disagreement and source contribution sections were reformatted into more scannable structured tables (domain/type/sources/direction/recency/reliability).
+- Map/table sync behavior and deterministic scoring/provenance model were preserved.
 
 ## Known weak spots
 - Detail pane can be cognitively dense under mixed signals and disagreement-heavy regions.
