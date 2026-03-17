@@ -61,6 +61,7 @@ export function renderOpsConsole(posture: DeploymentPostureConfig): string {
   <section class="card"><h2>Source freshness</h2><table id="freshness-table"></table></section>
   <section class="card">
     <h2>Source degradation guardrails</h2>
+    <p>Deterministic source-health signals. Treat this as input-quality posture, separate from region risk posture.</p>
     <div id="source-degradation-trends">loading...</div>
     <table id="source-degradation-table"></table>
   </section>

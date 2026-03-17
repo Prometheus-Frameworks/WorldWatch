@@ -57,6 +57,7 @@ test('analyst console includes focus mode, pinning, and snapshot compare control
   assert.ok(html.includes('worldwatch.analyst.pins'));
   assert.ok(html.includes('id="compare-select"'));
   assert.ok(html.includes('Scan order: Escalation posture'));
+  assert.ok(html.includes('Source-quality caution cue'));
   assert.ok(html.includes('id="compare-summary-table"'));
   assert.ok(html.includes('Score + state changes'));
   assert.ok(html.includes('Trust cue changes'));
@@ -88,9 +89,11 @@ test('analyst client script persists compare mode and renders compare/pin readab
   assert.ok(html.includes('Snapshot compare summary'));
   assert.ok(html.includes('What changed?'));
   assert.ok(html.includes('Trust direction'));
+  assert.ok(html.includes('Source-quality cue'));
   assert.ok(html.includes('Composite Δ'));
   assert.ok(html.includes('Narrative-leading divergence'));
   assert.ok(html.includes('Trust-cue change strip'));
+  assert.ok(html.includes('Source-quality drag:'));
   assert.ok(html.includes('State changes'));
   assert.ok(html.includes('Click to lock region and continue in table/detail.'));
   assert.ok(html.includes('.map-tooltip-grid'));

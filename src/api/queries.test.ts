@@ -160,6 +160,7 @@ test('getRegionDetail assembles score, deltas, recent signals and history', asyn
   assert.equal(Array.isArray((detail as Record<string, unknown>).source_contributions), true);
   assert.equal(Array.isArray((detail as Record<string, unknown>).triage_notes), true);
   assert.equal((detail as { explainability_summary: Record<string, string> }).explainability_summary.freshness_state, 'fresh');
+  assert.equal((detail as { latest_score: { source_quality_affected: boolean } }).latest_score.source_quality_affected, false);
   assert.equal(Array.isArray((detail as { explainability_groups: Record<string, unknown> }).explainability_groups.top_contributing_factors as unknown[]), true);
   assert.equal(Array.isArray((detail as { explainability_groups: Record<string, unknown> }).explainability_groups.source_disagreement_groups as unknown[]), true);
   assert.equal(typeof (detail as { explainability_groups: { narrative_physical_divergence: Record<string, unknown> } }).explainability_groups.narrative_physical_divergence, 'object');
@@ -484,4 +485,7 @@ test('getRegionCompare returns deterministic latest-vs-previous deltas', async (
   assert.ok(compare);
   assert.equal((compare as Record<string, unknown>).compare_mode, 'previous');
   assert.equal((compare as { deltas: { composite_score: number } }).deltas.composite_score, 6);
+  assert.equal((compare as { left: { source_quality_affected: boolean } }).left.source_quality_affected, false);
+  assert.equal((compare as { right: { source_quality_affected: boolean } }).right.source_quality_affected, false);
+  assert.equal((compare as { right: { source_quality_cue: string } }).right.source_quality_cue, 'Watch source quality; partial degradation present');
 });

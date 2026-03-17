@@ -234,6 +234,11 @@ export function getAnalystConsoleClientScript(): string {
       const prefix = numeric > 0 ? '+' : '';
       return '<span class="' + cls + '">' + prefix + numeric.toFixed(digits) + '</span>';
     }
+    function sourceQualityLabel(row) {
+      const affected = Boolean(row?.source_quality_affected);
+      const cue = String(row?.source_quality_cue ?? (affected ? 'Potential source-quality drag present' : 'Region signal quality currently healthy'));
+      return (affected ? '⚠️ ' : '✅ ') + cue;
+    }
     function persistCompareMode() { localStorage.setItem('worldwatch.analyst.compare_mode', compareMode); }
     function deriveNextActiveRegionSlug(visibleSlugs, currentActiveSlug) {
       if (currentActiveSlug && visibleSlugs.includes(currentActiveSlug)) return currentActiveSlug;
@@ -271,7 +276,7 @@ export function getAnalystConsoleClientScript(): string {
       if (!(table instanceof HTMLTableElement)) return;
       const filtered = filterRegions(Array.isArray(allRows) ? allRows : []);
       if (filtered.length === 0) {
-        table.innerHTML = '<tr><td colspan="10">No regions match current filters.</td></tr>';
+        table.innerHTML = '<tr><td colspan="10">No regions match current filters. Clear one or more filters to restore results.</td></tr>';
         lastTableSignature = 'empty';
         return;
       }
@@ -288,7 +293,7 @@ export function getAnalystConsoleClientScript(): string {
           '<td>' + formatNum(row.composite_score, 1) + '</td>' +
           '<td><span class="pill">' + row.status_band + '</span></td>' +
           '<td>' + row.confidence_band + '</td><td>' + row.freshness_state + '</td><td>' + row.evidence_state + '</td>' +
-          '<td>' + (row.source_quality_affected ? '⚠️ ' : '✅ ') + String(row.source_quality_cue ?? '-') + '</td>' +
+          '<td>' + sourceQualityLabel(row) + '</td>' +
           '<td>' + formatNum(row.delta_24h, 1) + '</td><td>' + formatNum(row.delta_7d, 1) + '</td><td>' + formatTimestamp(row.snapshot_time) + '</td></tr>';
       }).join('');
       table.innerHTML = header + body;
@@ -328,11 +333,11 @@ export function getAnalystConsoleClientScript(): string {
       const signature = getFeedSignature(feed);
       if (signature === lastFeedSignature) return;
       if (!Array.isArray(feed) || feed.length === 0) {
-        container.innerHTML = '<p>No feed entries yet.</p>';
+        container.innerHTML = '<p>No feed entries yet. Run a cycle in Ops and refresh to populate momentum cards.</p>';
         lastFeedSignature = signature;
         return;
       }
-      container.innerHTML = feed.slice(0, 30).map((row) => '<article class="feed-card"><h3>' + row.name + '</h3><p><strong>Composite risk:</strong> ' + formatNum(row.composite_score, 1) + ' <span class="pill">' + row.status_band + '</span></p><p><strong>Momentum:</strong> 24h ' + formatNum(row.delta_24h, 1) + ' · 7d ' + formatNum(row.delta_7d, 1) + '</p><p><strong>Triage:</strong> ' + (row.confidence_band ?? '-') + ' confidence · ' + (row.freshness_state ?? '-') + ' freshness · ' + (row.evidence_state ?? '-') + ' evidence</p><p><strong>Source trust cue:</strong> ' + (row.source_quality_affected ? '⚠️ ' : '✅ ') + (row.source_quality_cue ?? 'No source-quality cue') + '</p><p><strong>Snapshot:</strong> ' + formatTimestamp(row.snapshot_time) + '</p><p><button class="region-link" data-region="' + row.slug + '">Inspect region</button></p></article>').join('');
+      container.innerHTML = feed.slice(0, 30).map((row) => '<article class="feed-card"><h3>' + row.name + '</h3><p><strong>Composite risk:</strong> ' + formatNum(row.composite_score, 1) + ' <span class="pill">' + row.status_band + '</span></p><p><strong>Momentum:</strong> 24h ' + formatNum(row.delta_24h, 1) + ' · 7d ' + formatNum(row.delta_7d, 1) + '</p><p><strong>Triage:</strong> ' + (row.confidence_band ?? '-') + ' confidence · ' + (row.freshness_state ?? '-') + ' freshness · ' + (row.evidence_state ?? '-') + ' evidence</p><p><strong>Source trust cue:</strong> ' + sourceQualityLabel(row) + '</p><p><strong>Snapshot:</strong> ' + formatTimestamp(row.snapshot_time) + '</p><p><button class="region-link" data-region="' + row.slug + '">Inspect region</button></p></article>').join('');
       lastFeedSignature = signature;
     }
 
@@ -438,7 +443,7 @@ export function getAnalystConsoleClientScript(): string {
       const latest = detail.latest_score; const history = Array.isArray(detail.history) ? detail.history : [];
       const explainabilityGroups = detail.explainability_groups ?? {};
       const explainabilitySummary = detail.explainability_summary ?? {};
-      document.getElementById('detail-header').innerHTML = '<h2>' + latest.name + '</h2><p><strong>Snapshot:</strong> ' + formatTimestamp(latest.snapshot_time) + '</p><div class="detail-kpis"><span class="detail-kpi"><strong>Composite:</strong> ' + formatNum(latest.composite_score, 1) + '</span><span class="detail-kpi"><strong>Δ24h:</strong> ' + formatNum(detail.latest_delta?.delta_24h, 1) + '</span><span class="detail-kpi"><strong>Δ7d:</strong> ' + formatNum(detail.latest_delta?.delta_7d, 1) + '</span><span class="detail-kpi"><strong>Status:</strong> ' + latest.status_band + '</span><span class="detail-kpi"><strong>Confidence:</strong> ' + latest.confidence_band + '</span><span class="detail-kpi"><strong>Freshness:</strong> ' + latest.freshness_state + '</span><span class="detail-kpi"><strong>Evidence:</strong> ' + latest.evidence_state + '</span></div>';
+      document.getElementById('detail-header').innerHTML = '<h2>' + latest.name + '</h2><p><strong>Snapshot:</strong> ' + formatTimestamp(latest.snapshot_time) + '</p><div class="detail-kpis"><span class="detail-kpi"><strong>Composite:</strong> ' + formatNum(latest.composite_score, 1) + '</span><span class="detail-kpi"><strong>Δ24h:</strong> ' + formatNum(detail.latest_delta?.delta_24h, 1) + '</span><span class="detail-kpi"><strong>Δ7d:</strong> ' + formatNum(detail.latest_delta?.delta_7d, 1) + '</span><span class="detail-kpi"><strong>Status:</strong> ' + latest.status_band + '</span><span class="detail-kpi"><strong>Confidence:</strong> ' + latest.confidence_band + '</span><span class="detail-kpi"><strong>Freshness:</strong> ' + latest.freshness_state + '</span><span class="detail-kpi"><strong>Evidence:</strong> ' + latest.evidence_state + '</span></div><p class="hint"><strong>Source-quality caution:</strong> ' + sourceQualityLabel(latest) + ' This cue isolates input-quality drag and should be read alongside (not as a replacement for) region risk.</p>';
       renderScanCards(detail, explainabilitySummary, explainabilityGroups);
       const stateCards = document.getElementById('explainability-state-cards');
       if (stateCards instanceof HTMLElement) {
@@ -478,6 +483,7 @@ export function getAnalystConsoleClientScript(): string {
           compareHighlights.innerHTML = [
             ['What changed?', Number(compare.deltas?.composite_score) === 0 && !statusChanged && !confidenceChanged && !freshnessChanged && !evidenceChanged ? 'No material state change' : 'State or score shift detected'],
             ['Trust direction', Number(compare.deltas?.composite_score) > 0 ? 'Degraded (+risk)' : (Number(compare.deltas?.composite_score) < 0 ? 'Improved (-risk)' : 'Flat')],
+            ['Source-quality cue', compare.left?.source_quality_affected ? 'Quality drag active in latest snapshot' : 'No quality drag in latest snapshot'],
             ['Composite Δ', formatDeltaLabel(compare.deltas?.composite_score, 1)],
             ['Disagreement', compare.flags?.disagreement_changed ? 'Appeared/disappeared' : 'Unchanged'],
             ['Narrative-leading divergence', compare.flags?.divergence_changed ? 'Activated/cleared' : 'Unchanged'],
@@ -496,6 +502,7 @@ export function getAnalystConsoleClientScript(): string {
           compareTrustStrip.innerHTML = '<h4>Trust-cue change strip</h4><div class="compare-chip-row">' + [
             'Disagreement: ' + (compare.flags?.disagreement_changed ? 'appeared/disappeared' : 'unchanged'),
             'Narrative-leading divergence: ' + (compare.flags?.divergence_changed ? 'activated/cleared' : 'unchanged'),
+            'Source-quality drag: ' + (compare.left?.source_quality_affected ? 'active' : 'clear') + ' (latest) vs ' + (compare.right?.source_quality_affected ? 'active' : 'clear') + ' (' + (compare.compare_mode === '24h-ago' ? '24h-ago' : 'previous') + ')',
           ].map((label) => '<span class="compare-chip">' + label + '</span>').join('') + '</div>';
         }
         renderHistoryTable('compare-summary-table', [
@@ -507,7 +514,7 @@ export function getAnalystConsoleClientScript(): string {
         ], [{ key: 'metric', header: 'Metric' }, { key: 'latest', header: 'Latest' }, { key: 'compared', header: compare.compare_mode === '24h-ago' ? '24h-ago' : 'Previous' }, { key: 'delta', header: 'Δ / state' }]);
         renderHistoryTable('compare-subscores-table', [{ metric: 'Conflict', delta: compare.deltas?.conflict_score }, { metric: 'Shipping', delta: compare.deltas?.chokepoint_score }, { metric: 'Oil', delta: compare.deltas?.oil_score }, { metric: 'Displacement', delta: compare.deltas?.displacement_score }, { metric: 'Narrative', delta: compare.deltas?.narrative_score }], [{ key: 'metric', header: 'Sub-score' }, { key: 'delta', header: 'Δ', render: (v) => formatDeltaLabel(v, 1) }]);
         renderHistoryTable('compare-factors-table', (compare.left?.top_factors ?? []).map((row, idx) => ({ latest_factor: row.factor_label, latest_source: row.source, other_factor: compare.right?.top_factors?.[idx]?.factor_label ?? '-', other_source: compare.right?.top_factors?.[idx]?.source ?? '-' })), [{ key: 'latest_factor', header: 'Latest factor' }, { key: 'latest_source', header: 'Latest source' }, { key: 'other_factor', header: 'Compared factor' }, { key: 'other_source', header: 'Compared source' }]);
-        renderHistoryTable('compare-signals-table', [{ metric: 'Disagreement groups changed', value: compare.flags?.disagreement_changed ? 'yes' : 'no' }, { metric: 'Narrative-vs-physical cue changed', value: compare.flags?.divergence_changed ? 'yes' : 'no' }], [{ key: 'metric', header: 'Change signal' }, { key: 'value', header: 'Value' }]);
+        renderHistoryTable('compare-signals-table', [{ metric: 'Disagreement groups changed', value: compare.flags?.disagreement_changed ? 'yes' : 'no' }, { metric: 'Narrative-vs-physical cue changed', value: compare.flags?.divergence_changed ? 'yes' : 'no' }, { metric: 'Source-quality drag changed', value: compare.left?.source_quality_affected === compare.right?.source_quality_affected ? 'no' : 'yes' }], [{ key: 'metric', header: 'Change signal' }, { key: 'value', header: 'Value' }]);
       } else {
         if (compareHighlights instanceof HTMLElement) compareHighlights.innerHTML = '<article class="compare-card"><span class="scan-label">Snapshot compare</span><p class="scan-value">No compare payload available.</p></article>';
         if (compareStateStrip instanceof HTMLElement) compareStateStrip.innerHTML = '<h4>State changes</h4><div class="compare-chip-row"><span class="compare-chip">No compare payload available</span></div>';
