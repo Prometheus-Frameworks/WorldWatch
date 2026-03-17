@@ -1,0 +1,80 @@
+{
+  "generatedAt": "2026-03-17T03:38:41.900Z",
+  "totalCases": 4,
+  "passCount": 4,
+  "failCount": 0,
+  "runs": [
+    {
+      "id": "fw-breakout-24",
+      "note": "Young forward breakout with strong production and efficiency.",
+      "expectedStage": "peak",
+      "actualStage": "peak",
+      "expectedModifierBand": "positive",
+      "actualModifierBand": "positive",
+      "stagePass": true,
+      "modifierBandPass": true,
+      "pass": true,
+      "lowSampleWarning": false,
+      "reasons": {
+        "production": "production is ahead at 0.22 against positional baseline.",
+        "role": "role is on track at 0.12 inside positional tolerance.",
+        "efficiency": "efficiency is ahead at 0.20 against positional baseline.",
+        "overall": "Overall interpretation for FW in peak: clear positive curve signal (0.18). Sample size is sufficient for normal confidence."
+      }
+    },
+    {
+      "id": "mf-stable-28",
+      "note": "Prime midfielder with balanced signals.",
+      "expectedStage": "peak",
+      "actualStage": "peak",
+      "expectedModifierBand": "neutral",
+      "actualModifierBand": "neutral",
+      "stagePass": true,
+      "modifierBandPass": true,
+      "pass": true,
+      "lowSampleWarning": false,
+      "reasons": {
+        "production": "production is on track at 0.02 inside positional tolerance.",
+        "role": "role is on track at 0.04 inside positional tolerance.",
+        "efficiency": "efficiency is on track at 0.01 inside positional tolerance.",
+        "overall": "Overall interpretation for MF in peak: balanced curve signal (0.02). Sample size is sufficient for normal confidence."
+      }
+    },
+    {
+      "id": "df-decline-34",
+      "note": "Older defender showing broad decline.",
+      "expectedStage": "experienced",
+      "actualStage": "experienced",
+      "expectedModifierBand": "negative",
+      "actualModifierBand": "negative",
+      "stagePass": true,
+      "modifierBandPass": true,
+      "pass": true,
+      "lowSampleWarning": false,
+      "reasons": {
+        "production": "production is behind at -0.18 versus positional baseline.",
+        "role": "role is behind at -0.12 versus positional baseline.",
+        "efficiency": "efficiency is behind at -0.14 versus positional baseline.",
+        "overall": "Overall interpretation for DF in experienced: clear negative curve signal (-0.15). Sample size is sufficient for normal confidence."
+      }
+    },
+    {
+      "id": "gk-low-sample-22",
+      "note": "Young goalkeeper with limited minutes and warning expected.",
+      "expectedStage": "development",
+      "actualStage": "development",
+      "expectedModifierBand": "neutral",
+      "actualModifierBand": "neutral",
+      "stagePass": true,
+      "modifierBandPass": true,
+      "pass": true,
+      "lowSampleWarning": true,
+      "reasons": {
+        "production": "production is on track at 0.04 inside positional tolerance.",
+        "role": "role is on track at -0.01 inside positional tolerance.",
+        "efficiency": "efficiency is on track at 0.03 inside positional tolerance.",
+        "overall": "Overall interpretation for GK in development: balanced curve signal (0.02). Low sample warning is active; confidence should be reduced."
+      }
+    }
+  ]
+}

@@ -11,7 +11,9 @@
     "cycle:run": "node --experimental-strip-types src/scripts/runCycle.ts",
     "api:start": "node --experimental-strip-types src/scripts/startApi.ts",
     "db:migrations": "node --experimental-strip-types src/scripts/dbMigrate.ts",
-    "scheduler:start": "node --experimental-strip-types src/scripts/runScheduler.ts"
+    "scheduler:start": "node --experimental-strip-types src/scripts/runScheduler.ts",
+    "agecurve:build": "node --experimental-strip-types src/scripts/buildAgeCurveArtifacts.ts",
+    "agecurve:validate": "node --experimental-strip-types src/scripts/runValidation.ts"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

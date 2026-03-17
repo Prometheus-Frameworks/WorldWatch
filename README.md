@@ -32,6 +32,8 @@ All scripts run with Node TypeScript strip-types mode.
 - `npm run cycle:run` — run one complete ingestion + scoring cycle.
 - `npm run scheduler:start` — run recurring scheduler loop.
 - `npm run api:start` — start API + dashboard server.
+- `npm run agecurve:build` — generate age-curve reintegration artifact + slim Tiber modifiers artifact.
+- `npm run agecurve:validate` — run curated archetype validation pack and write `artifacts/validation_report.json`.
 
 ## Environment variables
 
