@@ -225,7 +225,7 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
       </select>
       <button id="reset-analyst-layout" type="button">Reset analyst layout</button>
     </div>
-    <p id="scan-order-hint" class="hint">Scan order: Escalation posture → Freshness/confidence/evidence → Divergence cue (if active) → Disagreement summary → Stale high-impact sources → Snapshot compare summary</p>
+    <p id="scan-order-hint" class="hint">Scan order: Escalation posture → Freshness/confidence/evidence → Source-quality caution cue → Divergence cue (if active) → Disagreement summary → Stale high-impact sources → Snapshot compare summary</p>
     <div id="detail-header" class="detail-header-card"></div>
     <section id="pinned-sections" class="detail-section" hidden>
       <h3>Pinned sections</h3>

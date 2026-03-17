@@ -243,6 +243,13 @@ export async function getRegionDetail(db: QueryableDb, slug: string, historyLimi
             rs.confidence_band::text as confidence_band,
             rs.freshness_state::text as freshness_state,
             rs.evidence_state::text as evidence_state,
+            (rs.freshness_state <> 'fresh' AND (rs.confidence_band = 'low' OR rs.evidence_state IN ('mixed', 'incomplete'))) AS source_quality_affected,
+            CASE
+              WHEN rs.freshness_state = 'fresh' THEN 'Region signal quality currently healthy'
+              WHEN rs.confidence_band = 'low' THEN 'Potential source-quality drag: stale freshness and low confidence'
+              WHEN rs.evidence_state IN ('mixed', 'incomplete') THEN 'Potential source-quality drag: stale freshness and incomplete/mixed evidence'
+              ELSE 'Watch source quality; partial degradation present'
+            END AS source_quality_cue,
             rs.conflict_score,
             rs.chokepoint_score,
             rs.oil_score,
@@ -334,6 +341,8 @@ export async function getRegionDetail(db: QueryableDb, slug: string, historyLimi
       confidence_band: head.confidence_band,
       freshness_state: head.freshness_state,
       evidence_state: head.evidence_state,
+      source_quality_affected: isSourceQualityAffected(head),
+      source_quality_cue: sourceQualityCue(head),
       snapshot_time: head.snapshot_time,
       conflict_score: head.conflict_score,
       chokepoint_score: head.chokepoint_score,
@@ -433,6 +442,22 @@ function asTimestamp(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function isSourceQualityAffected(row: Record<string, unknown>): boolean {
+  if (typeof row.source_quality_affected === 'boolean') return row.source_quality_affected;
+  return String(row.freshness_state ?? '') !== 'fresh' && (
+    String(row.confidence_band ?? '') === 'low'
+    || ['mixed', 'incomplete'].includes(String(row.evidence_state ?? ''))
+  );
+}
+
+function sourceQualityCue(row: Record<string, unknown>): string {
+  if (typeof row.source_quality_cue === 'string' && row.source_quality_cue.length > 0) return row.source_quality_cue;
+  if (String(row.freshness_state ?? '') === 'fresh') return 'Region signal quality currently healthy';
+  if (String(row.confidence_band ?? '') === 'low') return 'Potential source-quality drag: stale freshness and low confidence';
+  if (['mixed', 'incomplete'].includes(String(row.evidence_state ?? ''))) return 'Potential source-quality drag: stale freshness and incomplete/mixed evidence';
+  return 'Watch source quality; partial degradation present';
+}
+
 function buildSnapshotComparePayload(
   rows: Array<Record<string, unknown>>,
   rightMode: 'previous' | '24h-ago',
@@ -477,6 +502,8 @@ function buildSnapshotComparePayload(
       confidence_band: latest.confidence_band,
       freshness_state: latest.freshness_state,
       evidence_state: latest.evidence_state,
+      source_quality_affected: isSourceQualityAffected(latest),
+      source_quality_cue: sourceQualityCue(latest),
       conflict_score: latest.conflict_score,
       chokepoint_score: latest.chokepoint_score,
       oil_score: latest.oil_score,
@@ -494,6 +521,8 @@ function buildSnapshotComparePayload(
       confidence_band: right.confidence_band,
       freshness_state: right.freshness_state,
       evidence_state: right.evidence_state,
+      source_quality_affected: isSourceQualityAffected(right),
+      source_quality_cue: sourceQualityCue(right),
       conflict_score: right.conflict_score,
       chokepoint_score: right.chokepoint_score,
       oil_score: right.oil_score,
@@ -531,6 +560,13 @@ export async function getRegionCompare(db: QueryableDb, slug: string, rightMode:
             rs.confidence_band::text as confidence_band,
             rs.freshness_state::text as freshness_state,
             rs.evidence_state::text as evidence_state,
+            (rs.freshness_state <> 'fresh' AND (rs.confidence_band = 'low' OR rs.evidence_state IN ('mixed', 'incomplete'))) AS source_quality_affected,
+            CASE
+              WHEN rs.freshness_state = 'fresh' THEN 'Region signal quality currently healthy'
+              WHEN rs.confidence_band = 'low' THEN 'Potential source-quality drag: stale freshness and low confidence'
+              WHEN rs.evidence_state IN ('mixed', 'incomplete') THEN 'Potential source-quality drag: stale freshness and incomplete/mixed evidence'
+              ELSE 'Watch source quality; partial degradation present'
+            END AS source_quality_cue,
             rs.conflict_score,
             rs.chokepoint_score,
             rs.oil_score,

@@ -23,10 +23,10 @@ export function getOpsConsoleClientScript(): string {
       return (value / 1000).toFixed(1) + 's';
     }
 
-    function renderTable(id, rows, columns) {
+    function renderTable(id, rows, columns, emptyMessage = 'No data') {
       const table = document.getElementById(id);
       if (!Array.isArray(rows) || rows.length === 0) {
-        table.innerHTML = '<tr><td>No data</td></tr>';
+        table.innerHTML = '<tr><td colspan="' + String(columns.length || 1) + '">' + emptyMessage + '</td></tr>';
         return;
       }
 
@@ -130,14 +130,15 @@ export function getOpsConsoleClientScript(): string {
         { key: 'consecutive_failures', header: 'Consecutive failures' },
         { key: 'failures_24h', header: 'Failures 24h' },
         { key: 'latest_success_age_minutes', header: 'Minutes since last success' },
-      ]);
+      ], 'No recurring source degradation patterns in the current window.');
 
       const sourceTrendEl = document.getElementById('source-degradation-trends');
       if (sourceTrendEl) {
         const trend = summary?.source_degradation ?? {};
         sourceTrendEl.innerHTML = [
           '<p><strong>Stale sources (24h):</strong> ' + String(trend.stale_source_count_24h ?? 0) + ' (Δ ' + String(trend.stale_source_count_delta_24h ?? 0) + ' vs prior 24h)</p>',
-          '<p><strong>Source failures (24h):</strong> ' + String(trend.source_failures_24h ?? 0) + ' (Δ ' + String(trend.source_failures_delta_24h ?? 0) + ' vs prior 24h)</p>'
+          '<p><strong>Source failures (24h):</strong> ' + String(trend.source_failures_24h ?? 0) + ' (Δ ' + String(trend.source_failures_delta_24h ?? 0) + ' vs prior 24h)</p>',
+          '<p>Use this section to separate source-health regressions from region-level risk movement.</p>'
         ].join('');
       }
 
