@@ -388,6 +388,131 @@ export async function getRegionHistory(db: QueryableDb, slug: string, limit = 10
   return result.rows;
 }
 
+function asTimestamp(value: unknown): number {
+  const parsed = new Date(String(value ?? '')).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function buildSnapshotComparePayload(
+  rows: Array<Record<string, unknown>>,
+  rightMode: 'previous' | '24h-ago',
+): Record<string, unknown> | null {
+  if (!Array.isArray(rows) || rows.length < 2) return null;
+  const latest = rows[0];
+  if (!latest) return null;
+
+  const latestTs = asTimestamp(latest.snapshot_time);
+  const target24hTs = latestTs - (24 * 60 * 60 * 1000);
+  const right = rightMode === '24h-ago'
+    ? [...rows.slice(1)].sort((a, b) => Math.abs(asTimestamp(a.snapshot_time) - target24hTs) - Math.abs(asTimestamp(b.snapshot_time) - target24hTs))[0]
+    : rows[1];
+
+  if (!right) return null;
+
+  const leftGroups = buildDetailExplainabilityGroups(latest.factors_json);
+  const rightGroups = buildDetailExplainabilityGroups(right.factors_json);
+  const leftSummary = deriveDetailExplainabilitySummary({
+    freshness_state: String(latest.freshness_state ?? ''),
+    confidence_band: String(latest.confidence_band ?? ''),
+    status_band: String(latest.status_band ?? ''),
+    evidence_state: String(latest.evidence_state ?? ''),
+    factors: latest.factors_json,
+    explainability_groups: leftGroups,
+  });
+  const rightSummary = deriveDetailExplainabilitySummary({
+    freshness_state: String(right.freshness_state ?? ''),
+    confidence_band: String(right.confidence_band ?? ''),
+    status_band: String(right.status_band ?? ''),
+    evidence_state: String(right.evidence_state ?? ''),
+    factors: right.factors_json,
+    explainability_groups: rightGroups,
+  });
+
+  return {
+    compare_mode: rightMode,
+    left: {
+      snapshot_time: latest.snapshot_time,
+      composite_score: latest.composite_score,
+      status_band: latest.status_band,
+      confidence_band: latest.confidence_band,
+      freshness_state: latest.freshness_state,
+      evidence_state: latest.evidence_state,
+      conflict_score: latest.conflict_score,
+      chokepoint_score: latest.chokepoint_score,
+      oil_score: latest.oil_score,
+      displacement_score: latest.displacement_score,
+      narrative_score: latest.narrative_score,
+      top_factors: leftGroups.top_contributing_factors,
+      disagreement_groups: leftGroups.source_disagreement_groups,
+      divergence_cue: leftGroups.narrative_physical_divergence,
+      escalation_label: leftSummary.escalation_label,
+    },
+    right: {
+      snapshot_time: right.snapshot_time,
+      composite_score: right.composite_score,
+      status_band: right.status_band,
+      confidence_band: right.confidence_band,
+      freshness_state: right.freshness_state,
+      evidence_state: right.evidence_state,
+      conflict_score: right.conflict_score,
+      chokepoint_score: right.chokepoint_score,
+      oil_score: right.oil_score,
+      displacement_score: right.displacement_score,
+      narrative_score: right.narrative_score,
+      top_factors: rightGroups.top_contributing_factors,
+      disagreement_groups: rightGroups.source_disagreement_groups,
+      divergence_cue: rightGroups.narrative_physical_divergence,
+      escalation_label: rightSummary.escalation_label,
+    },
+    deltas: {
+      composite_score: Number(latest.composite_score ?? 0) - Number(right.composite_score ?? 0),
+      conflict_score: Number(latest.conflict_score ?? 0) - Number(right.conflict_score ?? 0),
+      chokepoint_score: Number(latest.chokepoint_score ?? 0) - Number(right.chokepoint_score ?? 0),
+      oil_score: Number(latest.oil_score ?? 0) - Number(right.oil_score ?? 0),
+      displacement_score: Number(latest.displacement_score ?? 0) - Number(right.displacement_score ?? 0),
+      narrative_score: Number(latest.narrative_score ?? 0) - Number(right.narrative_score ?? 0),
+    },
+    flags: {
+      disagreement_changed: leftGroups.source_disagreement_groups.length !== rightGroups.source_disagreement_groups.length,
+      divergence_changed: leftGroups.narrative_physical_divergence.is_active !== rightGroups.narrative_physical_divergence.is_active,
+    },
+  };
+}
+
+export async function getRegionCompare(db: QueryableDb, slug: string, rightMode: 'previous' | '24h-ago' = 'previous'): Promise<Record<string, unknown> | null> {
+  const region = await db.query<{ id: number }>('SELECT id FROM regions WHERE slug = $1 LIMIT 1', [slug]);
+  const regionId = region.rows[0]?.id;
+  if (!regionId) return null;
+
+  const snapshots = await db.query<Record<string, unknown>>(
+    `SELECT rs.snapshot_time,
+            rs.composite_score,
+            rs.status_band::text as status_band,
+            rs.confidence_band::text as confidence_band,
+            rs.freshness_state::text as freshness_state,
+            rs.evidence_state::text as evidence_state,
+            rs.conflict_score,
+            rs.chokepoint_score,
+            rs.oil_score,
+            rs.displacement_score,
+            rs.narrative_score,
+            rs.factors_json
+      FROM region_scores rs
+     WHERE rs.region_id = $1
+     ORDER BY rs.snapshot_time DESC
+     LIMIT 120`,
+    [regionId],
+  );
+
+  const payload = buildSnapshotComparePayload(snapshots.rows, rightMode);
+  if (!payload) return null;
+  return {
+    slug,
+    has_24h_ago: snapshots.rows.length > 2,
+    ...payload,
+  };
+}
+
 export async function getAnalystSummary(db: QueryableDb): Promise<AnalystSummary> {
   const regions = await getRegionSummaries(db);
 

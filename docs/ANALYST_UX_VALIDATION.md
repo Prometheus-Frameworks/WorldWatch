@@ -43,3 +43,9 @@ Use these canonical fixture scenarios for spot checks:
 - `npm test -- src/api/analystPayload.test.ts`
 - `npm test -- src/console/renderAnalystConsole.test.ts`
 
+
+## PR27 focus + compare acceptance updates
+- Region detail now defaults to **Focus mode** with first-scan stack: escalation posture, state cards, narrative-vs-physical cue (when active), disagreement summary, and stale high-impact sources.
+- Full detail remains available via mode toggle and analyst-specific section pinning (`worldwatch.analyst.pins`).
+- Snapshot compare supports deterministic **Latest vs Previous** (default) and **Latest vs 24h-ago** when history permits, with explicit score/sub-score/factor/disagreement/divergence deltas.
+- Scan-order reinforcement copy is visible in focus mode: `Escalation → States → Disagreement → Stale high-impact → (expand sections as needed)`.

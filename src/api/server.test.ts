@@ -568,3 +568,59 @@ test('analyst dashboard endpoint returns consolidated payload for client bootstr
 
   await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
 });
+
+
+test('server exposes region compare endpoint', async () => {
+  const db: QueryableDb = {
+    async query<T>(sql: string) {
+      if (sql.includes('SELECT id FROM regions')) return { rows: [{ id: 1 }] as T[] };
+      if (sql.includes('FROM region_scores rs')) {
+        return {
+          rows: [
+            {
+              snapshot_time: '2026-01-02T00:00:00Z',
+              composite_score: 81,
+              status_band: 'high',
+              confidence_band: 'high',
+              freshness_state: 'fresh',
+              evidence_state: 'confirmed',
+              conflict_score: 70,
+              chokepoint_score: 60,
+              oil_score: 50,
+              displacement_score: 40,
+              narrative_score: 30,
+              factors_json: [],
+            },
+            {
+              snapshot_time: '2026-01-01T00:00:00Z',
+              composite_score: 79,
+              status_band: 'elevated',
+              confidence_band: 'medium',
+              freshness_state: 'stale',
+              evidence_state: 'partial',
+              conflict_score: 68,
+              chokepoint_score: 58,
+              oil_score: 48,
+              displacement_score: 38,
+              narrative_score: 28,
+              factors_json: [],
+            },
+          ] as T[],
+        };
+      }
+      return { rows: [] as T[] };
+    },
+  };
+
+  const server = createWorldWatchApiServer(db);
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  if (!address) throw new Error('Server address unavailable');
+
+  const response = await fetch(`http://127.0.0.1:${address.port}/api/regions/levant/compare?right=previous`);
+  assert.equal(response.status, 200);
+  const payload = (await response.json()) as Record<string, unknown>;
+  assert.equal(payload.compare_mode, 'previous');
+
+  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+});

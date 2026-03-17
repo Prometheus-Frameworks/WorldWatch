@@ -99,7 +99,8 @@ function getDashboardDataModule(): string {
         return;
       }
 
-      const detail = await fetchJson(endpointMap.regionDetail(slug), null);
+      const [detail, compare] = await Promise.all([fetchJson(endpointMap.regionDetail(slug), null), fetchJson(endpointMap.regionCompare(slug, compareMode), null)]);
+      if (detail && compare) detail.compare = compare;
       renderDetail(detail);
       lastDetailSnapshotByRegion.set(slug, newestSnapshot ?? detail?.latest_score?.snapshot_time ?? null);
     }
@@ -191,6 +192,7 @@ export function getAnalystConsoleClientScript(): string {
       analystSummary: '/api/analyst/summary',
       analystDashboard: '/api/analyst/dashboard',
       regionDetail: (slug) => '/api/regions/' + encodeURIComponent(slug),
+      regionCompare: (slug, rightMode) => '/api/regions/' + encodeURIComponent(slug) + '/compare?right=' + encodeURIComponent(rightMode),
     };
 
     ${getInjectedSignatureHelpers()}
@@ -210,6 +212,9 @@ export function getAnalystConsoleClientScript(): string {
     let lastDetailSignature = '';
     let hoveredRegionSlug = null;
     let hasRenderedMapLegend = false;
+    let detailMode = localStorage.getItem('worldwatch.analyst.detail_mode') === 'full' ? 'full' : 'focus';
+    let detailPins = new Set(JSON.parse(localStorage.getItem('worldwatch.analyst.pins') ?? '[]'));
+    let compareMode = 'previous';
 
     function formatTimestamp(value) {
       if (!value) return '-';
@@ -303,6 +308,50 @@ export function getAnalystConsoleClientScript(): string {
       lastFeedSignature = signature;
     }
 
+
+    function persistDetailMode() { localStorage.setItem('worldwatch.analyst.detail_mode', detailMode); }
+    function persistPins() { localStorage.setItem('worldwatch.analyst.pins', JSON.stringify([...detailPins].sort())); }
+    function togglePin(sectionKey) { if (detailPins.has(sectionKey)) detailPins.delete(sectionKey); else detailPins.add(sectionKey); persistPins(); applyDetailMode(); }
+    function pinButton(sectionKey) { return '<button class="region-link pin-control" data-pin-section="' + sectionKey + '">' + (detailPins.has(sectionKey) ? 'Unpin this section' : 'Pin this section') + '</button>'; }
+    function applyDetailMode() {
+      const modeSelect = document.getElementById('detail-mode-select');
+      if (modeSelect instanceof HTMLSelectElement) modeSelect.value = detailMode;
+      const scanHint = document.getElementById('scan-order-hint');
+      if (scanHint instanceof HTMLElement) scanHint.hidden = detailMode !== 'focus';
+      const collapsibles = document.querySelectorAll('#region-detail details.collapsible');
+      for (const node of collapsibles) {
+        if (!(node instanceof HTMLDetailsElement)) continue;
+        if (detailMode === 'focus') node.open = false;
+        else node.open = true;
+      }
+      const pinnedArea = document.getElementById('pinned-sections');
+      const pinnedBody = document.getElementById('pinned-sections-body');
+      if (pinnedArea instanceof HTMLElement && pinnedBody instanceof HTMLElement) {
+        const pinnedKeys = [...detailPins];
+        if (pinnedKeys.length === 0) {
+          pinnedArea.hidden = true;
+          pinnedBody.innerHTML = '';
+        } else {
+          pinnedArea.hidden = false;
+          pinnedBody.innerHTML = pinnedKeys.map((key) => {
+            const section = document.querySelector('#region-detail [data-section-key="' + key + '"]');
+            return section instanceof HTMLElement ? section.outerHTML : '';
+          }).join('');
+        }
+      }
+    }
+    function addSectionPins() {
+      const headings = document.querySelectorAll('#region-detail [data-section-key] > h3, #region-detail [data-section-key] > summary');
+      for (const heading of headings) {
+        if (!(heading instanceof HTMLElement)) continue;
+        const parent = heading.parentElement;
+        const key = parent?.getAttribute('data-section-key');
+        if (!key) continue;
+        if (heading.querySelector('[data-pin-section]')) continue;
+        heading.insertAdjacentHTML('beforeend', pinButton(key));
+      }
+    }
+
     function renderHistoryTable(id, rows, columns) { const table = document.getElementById(id); if (!(table instanceof HTMLTableElement)) return; if (!Array.isArray(rows) || rows.length === 0) { table.innerHTML = '<tr><td>No history available</td></tr>'; return; } const header = '<tr>' + columns.map((col) => '<th>' + col.header + '</th>').join('') + '</tr>'; const body = rows.map((row) => '<tr>' + columns.map((col) => { const raw = row[col.key]; const value = col.render ? col.render(raw, row) : raw; return '<td>' + String(value ?? '-') + '</td>'; }).join('') + '</tr>').join(''); table.innerHTML = header + body; }
     function renderDisagreementSourcesCell(sources) { if (!Array.isArray(sources) || sources.length === 0) return '<span class="muted-cell">No source-level disagreement details</span>'; return '<ul class="source-bullets">' + sources.map((source) => '<li><strong>' + String(source.source ?? '-') + '</strong> · ' + String(source.movement_direction ?? '-') + ' · ' + formatNum(Number(source.recency_minutes), 0) + 'm · r=' + formatNum(Number(source.source_reliability), 2) + '</li>').join('') + '</ul>'; }
     function disagreementTypesText(types) { if (!Array.isArray(types) || types.length === 0) return '<span class="muted-cell">—</span>'; return types.join('<br>'); }
@@ -310,22 +359,18 @@ export function getAnalystConsoleClientScript(): string {
     function renderDetail(detail) {
       const container = document.getElementById('region-detail');
       if (!(container instanceof HTMLElement)) return;
-      const signature = getDetailSignature(detail ?? null);
+      const signature = getDetailSignature(detail ?? null) + '|' + detailMode + '|' + compareMode + '|' + JSON.stringify([...detailPins].sort());
       if (signature === lastDetailSignature) return;
       if (!detail || !detail.latest_score) { container.innerHTML = '<p>Select a region to inspect score composition and history.</p>'; lastDetailSignature = signature; return; }
       const latest = detail.latest_score; const history = Array.isArray(detail.history) ? detail.history : [];
-      document.getElementById('detail-header').innerHTML = '<h2>' + latest.name + '</h2><p><strong>Snapshot:</strong> ' + formatTimestamp(latest.snapshot_time) + '</p><div class="detail-kpis"><span class="detail-kpi"><strong>Composite:</strong> ' + formatNum(latest.composite_score, 1) + '</span><span class="detail-kpi"><strong>Δ24h:</strong> ' + formatNum(detail.latest_delta?.delta_24h, 1) + '</span><span class="detail-kpi"><strong>Δ7d:</strong> ' + formatNum(detail.latest_delta?.delta_7d, 1) + '</span><span class="detail-kpi"><strong>Status:</strong> ' + latest.status_band + '</span><span class="detail-kpi"><strong>Confidence:</strong> ' + latest.confidence_band + '</span><span class="detail-kpi"><strong>Freshness:</strong> ' + latest.freshness_state + '</span><span class="detail-kpi"><strong>Evidence:</strong> ' + latest.evidence_state + '</span></div>';
-      document.getElementById('subscores-list').innerHTML = [['Conflict pressure', latest.conflict_score], ['Chokepoint stress', latest.chokepoint_score], ['Oil shock risk', latest.oil_score], ['Displacement acceleration', latest.displacement_score], ['Narrative heat', latest.narrative_score]].map(([label, value]) => '<article class="subscore-row"><p><strong>' + label + '</strong><span>' + formatNum(Number(value), 1) + '</span></p><div class="subscore-bar"><span style="width:' + computeSubscoreWidth(value) + '%"></span></div></article>').join('');
       const explainabilityGroups = detail.explainability_groups ?? {};
-      renderHistoryTable('explainability-factors-table', Array.isArray(explainabilityGroups.top_contributing_factors) ? explainabilityGroups.top_contributing_factors : [], [{ key: 'factor_label', header: 'Factor' }, { key: 'source', header: 'Source' }, { key: 'domain', header: 'Domain' }, { key: 'normalized_contribution', header: 'Norm contrib', render: (v) => formatNum(Number(v), 1) }, { key: 'recency_minutes', header: 'Recency (m)', render: (v) => formatNum(Number(v), 0) }, { key: 'source_reliability', header: 'Reliability', render: (v) => formatNum(Number(v), 2) }, { key: 'movement_direction', header: 'Direction' }]);
       const explainabilitySummary = detail.explainability_summary ?? {};
+      document.getElementById('detail-header').innerHTML = '<h2>' + latest.name + '</h2><p><strong>Snapshot:</strong> ' + formatTimestamp(latest.snapshot_time) + '</p><div class="detail-kpis"><span class="detail-kpi"><strong>Composite:</strong> ' + formatNum(latest.composite_score, 1) + '</span><span class="detail-kpi"><strong>Δ24h:</strong> ' + formatNum(detail.latest_delta?.delta_24h, 1) + '</span><span class="detail-kpi"><strong>Δ7d:</strong> ' + formatNum(detail.latest_delta?.delta_7d, 1) + '</span><span class="detail-kpi"><strong>Status:</strong> ' + latest.status_band + '</span><span class="detail-kpi"><strong>Confidence:</strong> ' + latest.confidence_band + '</span><span class="detail-kpi"><strong>Freshness:</strong> ' + latest.freshness_state + '</span><span class="detail-kpi"><strong>Evidence:</strong> ' + latest.evidence_state + '</span></div>';
       renderScanCards(detail, explainabilitySummary, explainabilityGroups);
       const stateCards = document.getElementById('explainability-state-cards');
       if (stateCards instanceof HTMLElement) {
         const divergence = explainabilityGroups.narrative_physical_divergence;
-        const divergenceCard = divergence?.is_active
-          ? '<article class="state-card"><p><strong>Narrative-vs-physical cue:</strong> Narrative-leading signal</p><p>' + String(divergence.analyst_copy ?? '') + '</p></article>'
-          : '';
+        const divergenceCard = divergence?.is_active ? '<article class="state-card"><p><strong>Narrative-vs-physical cue:</strong> Narrative-leading signal</p><p>' + String(divergence.analyst_copy ?? '') + '</p></article>' : '';
         stateCards.innerHTML = [
           '<article class="state-card"><p><strong>Freshness:</strong> ' + String(explainabilitySummary.freshness_state ?? latest.freshness_state ?? '-') + '</p><p>' + String(explainabilitySummary.freshness_copy ?? '') + '</p></article>',
           '<article class="state-card"><p><strong>Confidence:</strong> ' + String(explainabilitySummary.confidence_band ?? latest.confidence_band ?? '-') + '</p><p>' + String(explainabilitySummary.confidence_copy ?? '') + '</p></article>',
@@ -334,6 +379,10 @@ export function getAnalystConsoleClientScript(): string {
           divergenceCard,
         ].join('');
       }
+      document.getElementById('subscores-list').innerHTML = [['Conflict pressure', latest.conflict_score], ['Chokepoint stress', latest.chokepoint_score], ['Oil shock risk', latest.oil_score], ['Displacement acceleration', latest.displacement_score], ['Narrative heat', latest.narrative_score]].map(([label, value]) => '<article class="subscore-row"><p><strong>' + label + '</strong><span>' + formatNum(Number(value), 1) + '</span></p><div class="subscore-bar"><span style="width:' + computeSubscoreWidth(value) + '%"></span></div></article>').join('');
+      renderHistoryTable('focus-disagreement-table', Array.isArray(explainabilityGroups.source_disagreement_groups) ? explainabilityGroups.source_disagreement_groups.slice(0, 1) : [], [{ key: 'domain', header: 'Domain' }, { key: 'disagreement_types', header: 'Type', render: (v) => disagreementTypesText(v) }, { key: 'disagreeing_sources', header: 'Top sources', render: (v) => renderDisagreementSourcesCell(Array.isArray(v) ? v.slice(0, 3) : v) }]);
+      renderHistoryTable('focus-stale-high-impact-table', Array.isArray(explainabilityGroups.stale_high_impact_sources) ? explainabilityGroups.stale_high_impact_sources.slice(0, 4) : [], [{ key: 'source', header: 'Source' }, { key: 'factor_label', header: 'Factor' }, { key: 'recency_minutes', header: 'Recency (m)', render: (v) => formatNum(Number(v), 0) }]);
+      renderHistoryTable('explainability-factors-table', Array.isArray(explainabilityGroups.top_contributing_factors) ? explainabilityGroups.top_contributing_factors : [], [{ key: 'factor_label', header: 'Factor' }, { key: 'source', header: 'Source' }, { key: 'domain', header: 'Domain' }, { key: 'normalized_contribution', header: 'Norm contrib', render: (v) => formatNum(Number(v), 1) }, { key: 'recency_minutes', header: 'Recency (m)', render: (v) => formatNum(Number(v), 0) }, { key: 'source_reliability', header: 'Reliability', render: (v) => formatNum(Number(v), 2) }, { key: 'movement_direction', header: 'Direction' }]);
       renderHistoryTable('second-order-table', Array.isArray(detail.second_order_effects) ? detail.second_order_effects : [], [{ key: 'effectType', header: 'Effect' }, { key: 'description', header: 'Description' }, { key: 'confidence', header: 'Confidence' }]);
       renderHistoryTable('signals-table', detail.recent_signals, [{ key: 'event_time', header: 'Event time', render: (v) => formatTimestamp(v) }, { key: 'signal_type', header: 'Signal' }, { key: 'source_name', header: 'Source' }, { key: 'value', header: 'Value', render: (v) => formatNum(Number(v), 2) }, { key: 'unit', header: 'Unit' }]);
       renderHistoryTable('source-contributions-table', Array.isArray(detail.source_contributions) ? detail.source_contributions : [], [{ key: 'source_name', header: 'Source' }, { key: 'avg_reliability', header: 'Avg reliability', render: (v) => formatNum(Number(v), 2) }, { key: 'signal_count', header: 'Count', render: (v) => formatNum(Number(v), 0) }, { key: 'latest_event_time', header: 'Latest event', render: (v) => formatTimestamp(v) }, { key: 'avg_raw_value', header: 'Avg raw value', render: (v) => formatNum(Number(v), 2) }]);
@@ -343,7 +392,16 @@ export function getAnalystConsoleClientScript(): string {
       renderHistoryTable('source-disagreement-table', Array.isArray(explainabilityGroups.source_disagreement_groups) ? explainabilityGroups.source_disagreement_groups : [], [{ key: 'domain', header: 'Domain' }, { key: 'disagreement_types', header: 'Disagreement type', render: (v) => disagreementTypesText(v) }, { key: 'disagreeing_sources', header: 'Sources / direction / recency / reliability', render: (v) => renderDisagreementSourcesCell(v) }]);
       renderHistoryTable('score-history-table', history, [{ key: 'snapshot_time', header: 'Snapshot', render: (v) => formatTimestamp(v) }, { key: 'composite_score', header: 'Composite', render: (v) => formatNum(Number(v), 1) }, { key: 'status_band', header: 'Status' }, { key: 'confidence_band', header: 'Confidence' }]);
       renderHistoryTable('delta-history-table', history, [{ key: 'snapshot_time', header: 'Snapshot', render: (v) => formatTimestamp(v) }, { key: 'delta_24h', header: 'Δ 24h', render: (v) => formatNum(Number(v), 1) }, { key: 'delta_7d', header: 'Δ 7d', render: (v) => formatNum(Number(v), 1) }, { key: 'rank_movement', header: 'Rank Δ', render: (v) => formatNum(Number(v), 0) }]);
+      const compare = detail.compare ?? null;
+      if (compare) {
+        renderHistoryTable('compare-summary-table', [{ metric: 'Composite', left: compare.left?.composite_score, right: compare.right?.composite_score, delta: compare.deltas?.composite_score }, { metric: 'Status band', left: compare.left?.status_band, right: compare.right?.status_band, delta: compare.left?.status_band === compare.right?.status_band ? 'unchanged' : 'changed' }, { metric: 'Confidence/Freshness/Evidence', left: String(compare.left?.confidence_band ?? '-') + '/' + String(compare.left?.freshness_state ?? '-') + '/' + String(compare.left?.evidence_state ?? '-'), right: String(compare.right?.confidence_band ?? '-') + '/' + String(compare.right?.freshness_state ?? '-') + '/' + String(compare.right?.evidence_state ?? '-'), delta: '—' }], [{ key: 'metric', header: 'Metric' }, { key: 'left', header: 'Latest' }, { key: 'right', header: compare.compare_mode === '24h-ago' ? '24h-ago' : 'Previous' }, { key: 'delta', header: 'Δ' }]);
+        renderHistoryTable('compare-subscores-table', [{ metric: 'Conflict', delta: compare.deltas?.conflict_score }, { metric: 'Shipping', delta: compare.deltas?.chokepoint_score }, { metric: 'Oil', delta: compare.deltas?.oil_score }, { metric: 'Displacement', delta: compare.deltas?.displacement_score }, { metric: 'Narrative', delta: compare.deltas?.narrative_score }], [{ key: 'metric', header: 'Sub-score' }, { key: 'delta', header: 'Δ', render: (v) => formatNum(Number(v), 1) }]);
+        renderHistoryTable('compare-factors-table', (compare.left?.top_factors ?? []).map((row, idx) => ({ latest_factor: row.factor_label, latest_source: row.source, other_factor: compare.right?.top_factors?.[idx]?.factor_label ?? '-', other_source: compare.right?.top_factors?.[idx]?.source ?? '-' })), [{ key: 'latest_factor', header: 'Latest factor' }, { key: 'latest_source', header: 'Latest source' }, { key: 'other_factor', header: 'Compared factor' }, { key: 'other_source', header: 'Compared source' }]);
+        renderHistoryTable('compare-signals-table', [{ metric: 'Disagreement groups changed', value: compare.flags?.disagreement_changed ? 'yes' : 'no' }, { metric: 'Narrative-vs-physical cue changed', value: compare.flags?.divergence_changed ? 'yes' : 'no' }], [{ key: 'metric', header: 'Change signal' }, { key: 'value', header: 'Value' }]);
+      }
       const triageContainer = document.getElementById('triage-notes'); if (triageContainer instanceof HTMLElement) { triageContainer.innerHTML = (Array.isArray(detail.triage_notes) ? detail.triage_notes : []).map((note) => '<article class="triage-note"><p><strong>' + note.title + '</strong></p><p>' + note.copy + '</p></article>').join(''); }
+      addSectionPins();
+      applyDetailMode();
       container.hidden = false;
       lastDetailSignature = signature;
     }
@@ -371,9 +429,11 @@ export function getAnalystConsoleClientScript(): string {
     document.getElementById('filter-freshness-state').addEventListener('change', () => { void syncRegionViewsAndMaybeLoadDetail(false); });
     document.getElementById('filter-evidence-state').addEventListener('change', () => { void syncRegionViewsAndMaybeLoadDetail(false); });
     document.getElementById('analyst-layout').addEventListener('change', () => applyLayout());
+    document.getElementById('detail-mode-select').addEventListener('change', (event) => { const target = event.target; if (target instanceof HTMLSelectElement) { detailMode = target.value === 'full' ? 'full' : 'focus'; persistDetailMode(); applyDetailMode(); lastDetailSignature = ''; void loadRegion(activeRegionSlug, true); } });
+    document.getElementById('compare-select').addEventListener('change', (event) => { const target = event.target; if (target instanceof HTMLSelectElement) { compareMode = target.value === '24h-ago' ? '24h-ago' : 'previous'; lastDetailSignature = ''; void loadRegion(activeRegionSlug, true); } });
     document.body.addEventListener('mouseover', (event) => { const target = event.target; if (!(target instanceof HTMLElement)) return; const regionNode = target.closest('[data-region]'); if (!(regionNode instanceof HTMLElement)) return; const slug = regionNode.getAttribute('data-region'); if (!slug || slug === activeRegionSlug) return; setHoveredRegion(slug); });
     document.body.addEventListener('mouseout', (event) => { const target = event.target; if (!(target instanceof HTMLElement)) return; const regionNode = target.closest('[data-region]'); if (!(regionNode instanceof HTMLElement)) return; const related = event.relatedTarget; if (related instanceof HTMLElement && related.closest('[data-region]') === regionNode) return; if (hoveredRegionSlug && hoveredRegionSlug !== activeRegionSlug) setHoveredRegion(null); });
-    document.body.addEventListener('click', (event) => { const target = event.target; if (!(target instanceof HTMLElement)) return; const regionNode = target.closest('[data-region]'); if (!(regionNode instanceof HTMLElement)) return; const slug = regionNode.getAttribute('data-region'); if (!slug) return; event.preventDefault(); setHoveredRegion(null); void loadRegion(slug, true); });
+    document.body.addEventListener('click', (event) => { const target = event.target; if (!(target instanceof HTMLElement)) return; const pin = target.closest('[data-pin-section]'); if (pin instanceof HTMLElement) { event.preventDefault(); const key = pin.getAttribute('data-pin-section'); if (key) { togglePin(key); lastDetailSignature = ''; void loadRegion(activeRegionSlug, true); } return; } const regionNode = target.closest('[data-region]'); if (!(regionNode instanceof HTMLElement)) return; const slug = regionNode.getAttribute('data-region'); if (!slug) return; event.preventDefault(); setHoveredRegion(null); void loadRegion(slug, true); });
     document.getElementById('analyst-map').addEventListener('mousemove', (event) => { const target = event.target; if (!(target instanceof SVGElement)) return; const path = target.closest('.map-region'); if (!(path instanceof SVGElement)) { hideMapTooltip(); return; } const slug = path.getAttribute('data-region'); if (slug && slug !== activeRegionSlug) setHoveredRegion(slug); const tooltip = path.getAttribute('data-tooltip'); if (!tooltip) { hideMapTooltip(); return; } showMapTooltip(tooltip, event.clientX, event.clientY); });
     document.getElementById('analyst-map').addEventListener('mouseleave', () => { hideMapTooltip(); setHoveredRegion(null); });
 

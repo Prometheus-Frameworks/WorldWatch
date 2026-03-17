@@ -30,6 +30,7 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
     .summary-label { color: #9eb7d8; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
     .summary-value { font-size: 14px; font-weight: 600; }
     .hint { color: #9ca8b7; font-size: 12px; }
+    .pin-control { margin-left: 8px; font-size: 11px; }
     .filter-grid { display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 8px; }
     .filter-grid label { font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
     table { width: 100%; border-collapse: collapse; }
@@ -175,72 +176,57 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
   </div>
 
   <section class="card" id="region-detail" hidden>
+    <div class="controls" id="detail-mode-controls">
+      <label for="detail-mode-select">Detail mode</label>
+      <select id="detail-mode-select">
+        <option value="focus">Focus mode</option>
+        <option value="full">Full detail</option>
+      </select>
+      <label for="compare-select">Compare</label>
+      <select id="compare-select">
+        <option value="previous">Latest vs Previous</option>
+        <option value="24h-ago">Latest vs 24h-ago</option>
+      </select>
+    </div>
+    <p id="scan-order-hint" class="hint">Scan order: Escalation → States → Disagreement → Stale high-impact → (expand sections as needed)</p>
     <div id="detail-header" class="detail-header-card"></div>
-
-    <section class="detail-priority-band">
+    <section id="pinned-sections" class="detail-section" hidden>
+      <h3>Pinned sections</h3>
+      <div id="pinned-sections-body"></div>
+    </section>
+    <section class="detail-priority-band" data-section-key="quick_scan">
       <h3>Explainability quick scan</h3>
       <p class="detail-subtitle">Read escalation posture first, then validate stale high-impact evidence and disagreement before deep factor review.</p>
       <div id="explainability-scan-cards" class="scan-grid"></div>
     </section>
+    <section class="detail-section" data-section-key="state_cards">
+      <h3>Freshness / confidence / evidence</h3>
+      <div id="explainability-state-cards" class="state-grid"></div>
+    </section>
+    <section class="detail-section" data-section-key="disagreement_summary">
+      <h3>Disagreement summary</h3>
+      <table id="focus-disagreement-table"></table>
+    </section>
+    <section class="detail-section" data-section-key="stale_high_impact">
+      <h3>Stale high-impact sources</h3>
+      <table id="focus-stale-high-impact-table"></table>
+    </section>
+    <section class="detail-section" data-section-key="compare">
+      <h3>Snapshot compare</h3>
+      <table id="compare-summary-table"></table>
+      <table id="compare-subscores-table"></table>
+      <table id="compare-factors-table"></table>
+      <table id="compare-signals-table"></table>
+    </section>
 
-    <div class="detail-grid">
-      <section class="detail-section">
-        <h3>Freshness / confidence / evidence</h3>
-        <p class="detail-subtitle">Deterministic state copy tied to the current payload.</p>
-        <div id="explainability-state-cards" class="state-grid"></div>
-      </section>
-      <section class="detail-section">
-        <h3>Sub-scores</h3>
-        <p class="detail-subtitle">Largest bars indicate strongest risk pressure.</p>
-        <div id="subscores-list" class="subscore-grid"></div>
-      </section>
-    </div>
-
-    <div class="detail-grid">
-      <section class="detail-section">
-        <h3>Top contributing factors</h3>
-        <p class="detail-subtitle">Highest normalized contributors with provenance and movement.</p>
-        <table id="explainability-factors-table"></table>
-      </section>
-      <section class="detail-section">
-        <h3>Source contributions</h3>
-        <p class="detail-subtitle">Compact per-source comparison ordered by reliability, then signal count, recency, and value context.</p>
-        <table id="source-contributions-table"></table>
-      </section>
-      <section class="detail-section">
-        <h3>Source disagreement groups</h3>
-        <p class="detail-subtitle">Ordered for first-scan trust: reliability, direction, recency, then disagreement type.</p>
-        <table id="source-disagreement-table"></table>
-      </section>
-      <section class="detail-section">
-        <h3>Second-order effects</h3>
-        <p class="detail-subtitle">Potential knock-on consequences from current pressure mix.</p>
-        <table id="second-order-table"></table>
-      </section>
-      <section class="detail-section">
-        <h3>Recent normalized signals</h3>
-        <p class="detail-subtitle">Recent upstream observations feeding factor calculations.</p>
-        <table id="signals-table"></table>
-      </section>
-      <section class="detail-section">
-        <h3>Explainability groupings</h3>
-        <p class="detail-subtitle">Freshest sources, stale high-impact contributors, mixed-signal disagreements, and source disagreement clusters.</p>
-        <table id="freshest-sources-table"></table>
-        <table id="stale-high-impact-table"></table>
-        <table id="mixed-indicators-table"></table>
-      </section>
-    </div>
-
-    <div class="detail-grid">
-      <section class="detail-section">
-        <h3>Score history</h3>
-        <table id="score-history-table"></table>
-      </section>
-      <section class="detail-section">
-        <h3>Delta history</h3>
-        <table id="delta-history-table"></table>
-      </section>
-    </div>
+    <details class="detail-section collapsible" data-section-key="top_contributing_factors"><summary>Top contributing factors</summary><table id="explainability-factors-table"></table></details>
+    <details class="detail-section collapsible" data-section-key="source_contributions"><summary>Source contributions</summary><table id="source-contributions-table"></table></details>
+    <details class="detail-section collapsible" data-section-key="source_disagreement"><summary>Source disagreement groups</summary><p class="detail-subtitle">Ordered for first-scan trust: reliability, direction, recency, then disagreement type.</p><table id="source-disagreement-table"></table></details>
+    <details class="detail-section collapsible" data-section-key="second_order_effects"><summary>Second-order effects</summary><table id="second-order-table"></table></details>
+    <details class="detail-section collapsible" data-section-key="recent_signals"><summary>Recent normalized signals</summary><table id="signals-table"></table></details>
+    <details class="detail-section collapsible" data-section-key="explainability_groupings"><summary>Explainability groupings</summary><table id="freshest-sources-table"></table><table id="stale-high-impact-table"></table><table id="mixed-indicators-table"></table></details>
+    <details class="detail-section collapsible" data-section-key="history_tables"><summary>History tables</summary><table id="score-history-table"></table><table id="delta-history-table"></table></details>
+    <details class="detail-section collapsible" data-section-key="sub_scores"><summary>Sub-scores</summary><p class="detail-subtitle">Largest bars indicate strongest risk pressure.</p><div id="subscores-list" class="subscore-grid"></div></details>
     <div id="triage-notes" class="triage-notes"></div>
   </section>
 

@@ -18,3 +18,9 @@
 - Public marketing-facing map experience.
 - Non-deterministic or opaque scoring narratives.
 - Features that imply military/targeting posture or non-civilian use.
+
+## Completed: PR27 Analyst ergonomics pass
+- [x] Focus mode default with collapsible deep-detail sections and preserved trust cues.
+- [x] Pin-this-section affordances with localStorage persistence.
+- [x] Deterministic latest-vs-prior snapshot compare in region detail (with optional 24h-ago mode).
+- [x] Test coverage updates for compare endpoint and analyst detail render affordances.
