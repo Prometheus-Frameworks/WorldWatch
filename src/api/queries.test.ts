@@ -34,6 +34,8 @@ test('getRegionSummaries returns latest summary shape', async () => {
             snapshot_time: '2026-01-01T00:00:00Z',
             delta_24h: 8,
             delta_7d: 11,
+            source_quality_affected: false,
+            source_quality_cue: 'Region signal quality currently healthy',
           },
         ] as T[],
       };
@@ -54,6 +56,8 @@ test('getRegionSummaries returns latest summary shape', async () => {
     'snapshot_time',
     'delta_24h',
     'delta_7d',
+    'source_quality_affected',
+    'source_quality_cue',
   ]);
 });
 
@@ -75,6 +79,8 @@ test('getRegionGeo returns geometry alongside analyst summary fields', async () 
           snapshot_time: '2026-01-01T00:00:00Z',
           delta_24h: 2,
           delta_7d: 5,
+          source_quality_affected: false,
+          source_quality_cue: 'Region signal quality currently healthy',
           geometry: { type: 'Polygon', coordinates: [[[31.8, 29.5], [33.1, 29.5], [33.1, 31.8], [31.8, 31.8], [31.8, 29.5]]] },
         }] as T[],
       };
@@ -95,6 +101,8 @@ test('getRegionGeo returns geometry alongside analyst summary fields', async () 
     'snapshot_time',
     'delta_24h',
     'delta_7d',
+    'source_quality_affected',
+    'source_quality_cue',
     'geometry',
   ]);
 });

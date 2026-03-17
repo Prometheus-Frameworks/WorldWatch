@@ -40,3 +40,9 @@
 - Reworked map tooltip into compact deterministic triage structure (region, composite, status, confidence, Δ24h, freshness/evidence cue) so analysts can decide click-worthiness quickly.
 - Preserved table/detail primacy and existing Focus Mode, compare, pin persistence, and posture/policy visibility behavior while improving map-origin selection sync.
 - Remaining weak spot: spatial workflow still relies on compact SVG geometry and can feel dense under heavy filter churn; likely next decision is operational guardrails vs stop-and-stabilize after another validation sweep.
+
+
+## Session update (PR32)
+- Landed operational guardrails for recurring source degradation with deterministic ops summary telemetry: stale-source trend delta, source-failure trend delta, and per-source recurring pattern classification.
+- Ops console now exposes degradation trend indicators and recurring source quality patterns to make failure/staleness drift visible over time.
+- Analyst dashboard now includes a source trust cue on each region/feed entry, helping analysts distinguish potential source-quality drag from true region-risk movement without changing score semantics.

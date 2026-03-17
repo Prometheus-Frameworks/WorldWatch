@@ -271,14 +271,14 @@ export function getAnalystConsoleClientScript(): string {
       if (!(table instanceof HTMLTableElement)) return;
       const filtered = filterRegions(Array.isArray(allRows) ? allRows : []);
       if (filtered.length === 0) {
-        table.innerHTML = '<tr><td colspan="9">No regions match current filters.</td></tr>';
+        table.innerHTML = '<tr><td colspan="10">No regions match current filters.</td></tr>';
         lastTableSignature = 'empty';
         return;
       }
       const sorted = sortRegions(filtered);
       const signature = getTableSignature(sorted, activeRegionSlug, hoveredRegionSlug);
       if (signature === lastTableSignature) return;
-      const header = '<tr>' + ['Region', 'Composite risk', 'Status band', 'Confidence', 'Freshness', 'Evidence', 'Δ 24h', 'Δ 7d', 'Latest snapshot'].map((value) => '<th>' + value + '</th>').join('') + '</tr>';
+      const header = '<tr>' + ['Region', 'Composite risk', 'Status band', 'Confidence', 'Freshness', 'Evidence', 'Source trust cue', 'Δ 24h', 'Δ 7d', 'Latest snapshot'].map((value) => '<th>' + value + '</th>').join('') + '</tr>';
       const body = sorted.map((row) => {
         const isActive = row.slug === activeRegionSlug;
         const isHovered = row.slug === hoveredRegionSlug;
@@ -288,6 +288,7 @@ export function getAnalystConsoleClientScript(): string {
           '<td>' + formatNum(row.composite_score, 1) + '</td>' +
           '<td><span class="pill">' + row.status_band + '</span></td>' +
           '<td>' + row.confidence_band + '</td><td>' + row.freshness_state + '</td><td>' + row.evidence_state + '</td>' +
+          '<td>' + (row.source_quality_affected ? '⚠️ ' : '✅ ') + String(row.source_quality_cue ?? '-') + '</td>' +
           '<td>' + formatNum(row.delta_24h, 1) + '</td><td>' + formatNum(row.delta_7d, 1) + '</td><td>' + formatTimestamp(row.snapshot_time) + '</td></tr>';
       }).join('');
       table.innerHTML = header + body;
@@ -331,7 +332,7 @@ export function getAnalystConsoleClientScript(): string {
         lastFeedSignature = signature;
         return;
       }
-      container.innerHTML = feed.slice(0, 30).map((row) => '<article class="feed-card"><h3>' + row.name + '</h3><p><strong>Composite risk:</strong> ' + formatNum(row.composite_score, 1) + ' <span class="pill">' + row.status_band + '</span></p><p><strong>Momentum:</strong> 24h ' + formatNum(row.delta_24h, 1) + ' · 7d ' + formatNum(row.delta_7d, 1) + '</p><p><strong>Triage:</strong> ' + (row.confidence_band ?? '-') + ' confidence · ' + (row.freshness_state ?? '-') + ' freshness · ' + (row.evidence_state ?? '-') + ' evidence</p><p><strong>Snapshot:</strong> ' + formatTimestamp(row.snapshot_time) + '</p><p><button class="region-link" data-region="' + row.slug + '">Inspect region</button></p></article>').join('');
+      container.innerHTML = feed.slice(0, 30).map((row) => '<article class="feed-card"><h3>' + row.name + '</h3><p><strong>Composite risk:</strong> ' + formatNum(row.composite_score, 1) + ' <span class="pill">' + row.status_band + '</span></p><p><strong>Momentum:</strong> 24h ' + formatNum(row.delta_24h, 1) + ' · 7d ' + formatNum(row.delta_7d, 1) + '</p><p><strong>Triage:</strong> ' + (row.confidence_band ?? '-') + ' confidence · ' + (row.freshness_state ?? '-') + ' freshness · ' + (row.evidence_state ?? '-') + ' evidence</p><p><strong>Source trust cue:</strong> ' + (row.source_quality_affected ? '⚠️ ' : '✅ ') + (row.source_quality_cue ?? 'No source-quality cue') + '</p><p><strong>Snapshot:</strong> ' + formatTimestamp(row.snapshot_time) + '</p><p><button class="region-link" data-region="' + row.slug + '">Inspect region</button></p></article>').join('');
       lastFeedSignature = signature;
     }
 

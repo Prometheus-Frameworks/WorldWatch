@@ -60,3 +60,8 @@
 - Internal map was tightened as a region-selection accelerator (clearer active lock state, hover distinction, compact triage tooltip).
 - Map/table/detail coordination remains deterministic and now better reflects shared active/hover semantics without changing score math.
 - Scope intentionally avoided basemap/public polish; table/detail remains the primary analyst workflow with map as supporting context.
+
+## Sprint note: operational guardrails + recurring source degradation pass
+- Added deterministic ops-level source degradation telemetry: 24h stale/failure trend deltas and recurring source pattern detection (recurring failures vs stale-with-failures vs stable).
+- Added analyst-facing source trust cue on region rows/feed so analysts can quickly separate potential source-quality drag from underlying region-risk movement.
+- Preserved internal-first determinism: all cues are computed from existing `job_runs` + latest region states without probabilistic inference or external dependencies.

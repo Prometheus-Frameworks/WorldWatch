@@ -59,6 +59,11 @@ export function renderOpsConsole(posture: DeploymentPostureConfig): string {
   <section class="card"><h2>Recent cycle runs</h2><table id="cycle-runs-table"></table></section>
   <section class="card"><h2>Recent source runs</h2><table id="source-runs-table"></table></section>
   <section class="card"><h2>Source freshness</h2><table id="freshness-table"></table></section>
+  <section class="card">
+    <h2>Source degradation guardrails</h2>
+    <div id="source-degradation-trends">loading...</div>
+    <table id="source-degradation-table"></table>
+  </section>
   <section class="card"><h2>Recent failures</h2><table id="failures-table"></table></section>
 
   ${renderPolicyFooterHtml()}
