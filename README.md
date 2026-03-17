@@ -32,6 +32,8 @@ All scripts run with Node TypeScript strip-types mode.
 - `npm run cycle:run` — run one complete ingestion + scoring cycle.
 - `npm run scheduler:start` — run recurring scheduler loop.
 - `npm run api:start` — start API + dashboard server.
+- `npm run deploy:web` — Railway/web boot command (analyst + ops + API server only).
+- `npm run deploy:scheduler` — Railway/scheduler boot command (recurring cycle executor only).
 
 ## Environment variables
 
@@ -45,12 +47,16 @@ All scripts run with Node TypeScript strip-types mode.
 - `UNHCR_URL`
 - `NASA_FIRMS_URL`
 
+### Required on Railway web service
+
+- `PORT` (injected by Railway; app listens on `process.env.PORT`)
+
 ### Optional
 
-- `PORT` (default `8787`)
 - `DEPLOYMENT_POSTURE` (`internal` | `invite_only` | `public_read_only`, default `internal`)
 - `DEPLOYMENT_BANNER_TEXT` (optional banner override)
 - `DEPLOYMENT_SUBTITLE_TEXT` (optional subtitle override)
+- `CYCLE_INTERVAL_MINUTES` (scheduler interval override, default `15`)
 
 ## API overview
 
@@ -66,6 +72,7 @@ All scripts run with Node TypeScript strip-types mode.
 
 ### Ops endpoints
 
+- `GET /healthz` (Railway healthcheck endpoint; live + DB readiness probe)
 - `GET /api/ops/health`
 - `GET /api/ops/summary`
 - `GET /api/ops/cycle/latest`

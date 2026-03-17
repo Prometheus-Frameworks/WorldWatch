@@ -37,3 +37,37 @@ test('loadRuntimeConfig reads deployment posture overrides', () => {
   assert.equal(config.deployment.bannerText, 'Invite-only workspace');
   assert.equal(config.deployment.subtitleText, 'For approved civilian analyst users.');
 });
+
+test('loadRuntimeConfig throws when DATABASE_URL is missing', () => {
+  let thrown: Error | null = null;
+  try {
+    loadRuntimeConfig({
+      ACLED_URL: 'https://acled.local',
+      GDELT_URL: 'https://gdelt.local',
+      IMF_PORTWATCH_URL: 'https://imf.local',
+      EIA_URL: 'https://eia.local',
+      UNHCR_URL: 'https://unhcr.local',
+      NASA_FIRMS_URL: 'https://firms.local',
+    });
+  } catch (error) {
+    thrown = error instanceof Error ? error : new Error(String(error));
+  }
+
+  assert.ok(Boolean(thrown));
+  assert.ok(String(thrown?.message).includes('DATABASE_URL'));
+});
+
+test('loadRuntimeConfig falls back to default port for invalid PORT input', () => {
+  const config = loadRuntimeConfig({
+    PORT: 'not-a-number',
+    DATABASE_URL: 'postgres://example',
+    ACLED_URL: 'https://acled.local',
+    GDELT_URL: 'https://gdelt.local',
+    IMF_PORTWATCH_URL: 'https://imf.local',
+    EIA_URL: 'https://eia.local',
+    UNHCR_URL: 'https://unhcr.local',
+    NASA_FIRMS_URL: 'https://firms.local',
+  });
+
+  assert.equal(config.port, 8787);
+});

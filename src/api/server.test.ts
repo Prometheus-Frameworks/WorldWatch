@@ -624,3 +624,46 @@ test('server exposes region compare endpoint', async () => {
 
   await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
 });
+
+test('healthcheck endpoint returns 200 when db is ready', async () => {
+  const db: QueryableDb = {
+    async query<T>(sql: string) {
+      if (sql.includes('SELECT 1 AS ok')) {
+        return { rows: [{ ok: 1 }] as T[] };
+      }
+      return { rows: [] as T[] };
+    },
+  };
+
+  const server = createWorldWatchApiServer(db);
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  if (!address) throw new Error('Server address unavailable');
+
+  const response = await fetch(`http://127.0.0.1:${address.port}/healthz`);
+  assert.equal(response.status, 200);
+  const payload = (await response.json()) as { status: string };
+  assert.equal(payload.status, 'ok');
+
+  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+});
+
+test('healthcheck endpoint returns 503 when db is unavailable', async () => {
+  const db: QueryableDb = {
+    async query<T>() {
+      throw new Error('db_unavailable');
+    },
+  };
+
+  const server = createWorldWatchApiServer(db);
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  if (!address) throw new Error('Server address unavailable');
+
+  const response = await fetch(`http://127.0.0.1:${address.port}/healthz`);
+  assert.equal(response.status, 503);
+  const payload = (await response.json()) as { status: string };
+  assert.equal(payload.status, 'unavailable');
+
+  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+});
