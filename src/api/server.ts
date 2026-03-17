@@ -84,6 +84,16 @@ async function routeRequest(
     return;
   }
 
+  if (method === 'GET' && path === '/healthz') {
+    try {
+      await db.query('SELECT 1 AS ok');
+      sendJson(res, 200, { status: 'ok' });
+    } catch {
+      sendJson(res, 503, { status: 'unavailable' });
+    }
+    return;
+  }
+
   if (method === 'GET' && path === '/ops') {
     sendHtml(res, 200, renderOpsConsole(posture));
     return;

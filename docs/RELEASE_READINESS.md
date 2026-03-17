@@ -37,3 +37,12 @@ Use this checklist before expanding internal trial usage.
 - Snapshot compare relies on available history and can be sparse early in a deployment.
 - Map is an internal spatial context aid, not a standalone decision surface.
 - This checklist does not alter scoring math; scoring behavior remains canonical.
+
+## 7) Railway deployment readiness
+- [ ] Web service starts with `npm run deploy:web` and serves analyst + ops + API only.
+- [ ] Scheduler service starts with `npm run deploy:scheduler` and runs recurring cycle execution only.
+- [ ] Railway web healthcheck is configured to `GET /healthz` and returns `200` after boot.
+- [ ] `DATABASE_URL` is wired from Railway Postgres to both services.
+- [ ] `DEPLOYMENT_POSTURE` is explicitly set (recommended first launch: `internal`).
+- [ ] Required source endpoint variables are set for all canonical ingestion jobs.
+- [ ] `docs/RAILWAY_DEPLOY.md` steps were completed and post-boot verification passed.
