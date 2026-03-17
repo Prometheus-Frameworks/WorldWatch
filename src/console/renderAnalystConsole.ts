@@ -179,7 +179,7 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
 
     <section class="detail-priority-band">
       <h3>Explainability quick scan</h3>
-      <p class="detail-subtitle">Prioritize mixed-signal and stale high-risk checks before deep factor review.</p>
+      <p class="detail-subtitle">Read escalation posture first, then validate stale high-impact evidence and disagreement before deep factor review.</p>
       <div id="explainability-scan-cards" class="scan-grid"></div>
     </section>
 
@@ -204,12 +204,12 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
       </section>
       <section class="detail-section">
         <h3>Source contributions</h3>
-        <p class="detail-subtitle">Compact per-source comparison for count, latest event, value, and reliability.</p>
+        <p class="detail-subtitle">Compact per-source comparison ordered by reliability, then signal count, recency, and value context.</p>
         <table id="source-contributions-table"></table>
       </section>
       <section class="detail-section">
         <h3>Source disagreement groups</h3>
-        <p class="detail-subtitle">Scan by domain, disagreement type, source direction, recency, and reliability.</p>
+        <p class="detail-subtitle">Ordered for first-scan trust: reliability, direction, recency, then disagreement type.</p>
         <table id="source-disagreement-table"></table>
       </section>
       <section class="detail-section">
@@ -224,7 +224,7 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
       </section>
       <section class="detail-section">
         <h3>Explainability groupings</h3>
-        <p class="detail-subtitle">Freshest sources, stale high-impact contributors, mixed-signal domains, and source disagreement clusters.</p>
+        <p class="detail-subtitle">Freshest sources, stale high-impact contributors, mixed-signal disagreements, and source disagreement clusters.</p>
         <table id="freshest-sources-table"></table>
         <table id="stale-high-impact-table"></table>
         <table id="mixed-indicators-table"></table>

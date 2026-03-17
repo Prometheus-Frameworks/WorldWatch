@@ -14,7 +14,7 @@
 - Deterministic ingestion -> scoring -> API flow with test coverage in runtime, API queries/payload shaping, scoring calculator, and snapshot jobs.
 - Posture enforcement for `public_read_only` (manual cycle trigger disabled).
 - Stable internal analyst + ops workflow powered by consolidated analyst payload (`/api/analyst/dashboard`).
-- Explainability disagreement ordering and narrative-leading divergence signaling are now deterministic and inspectable.
+- Explainability disagreement ordering, narrative-leading divergence signaling, and escalation posture cues are deterministic and inspectable.
 
 ### Still prototype / evolving
 - Internal map is supporting context, not the primary workflow.
@@ -24,18 +24,17 @@
 ## Recently completed sprints (latest)
 - Analyst detail readability/scanability pass tightened hierarchy and spacing while preserving table/detail-first workflow (complete).
 - Validation + edge-case pressure-test pass landed for freshness, confidence/severity mismatch, disagreement integrity, and domain odd cases in scoring/explainability tests.
-- Explainability hardening pass landed:
-  - reusable region-scenario test fixtures,
-  - deterministic narrative-vs-physical divergence marker in detail payload,
-  - deterministic disagreement summary ordering,
-  - analyst detail trust-cue rendering in existing workflow.
+- Analyst workflow validation + trust-cue clarity pass landed:
+  - lightweight analyst UX validation checklist (`docs/ANALYST_UX_VALIDATION.md`),
+  - deterministic escalation posture cue (high-severity/low-confidence vs high-severity/high-confidence vs narrative-leading caution),
+  - tightened first-scan ordering/copy for stale high-impact evidence, disagreement groups, and source contribution reliability emphasis.
 
 ## Known weak spots
-- Detail pane can be cognitively dense under mixed signals and disagreement-heavy regions.
-- High-risk + low-confidence scenarios still require disciplined human validation to avoid over-reading noisy data.
-- Freshness degradation can drive stale-high-risk states that need operator reruns and analyst verification.
+- Detail pane is improved but still cognitively dense in worst-case multi-domain disagreement snapshots.
+- Analysts can still over-read narrative-leading spikes if they skip the divergence cue and disagreement table.
+- Freshness degradation still demands operator reruns and explicit analyst verification discipline.
 
 ## Immediate next priorities
-1. Run another focused analyst-quality validation loop to measure trust-cue usefulness and misread reduction.
-2. Add replay-oriented regression checks for disagreement-heavy historical snapshots.
+1. Analyst polish follow-up: map ergonomics only where it speeds table/detail triage and does not distract from trust cues.
+2. Add small historical spot-check cadence (fixture-based) during analyst-facing UI changes.
 3. Keep posture/policy language and enforcement behavior aligned during future UI/API changes.
