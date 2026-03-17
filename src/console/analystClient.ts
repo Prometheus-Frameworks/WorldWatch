@@ -323,7 +323,7 @@ export function getAnalystConsoleClientScript(): string {
     function persistDetailMode() { localStorage.setItem('worldwatch.analyst.detail_mode', detailMode); }
     function persistPins() { localStorage.setItem('worldwatch.analyst.pins', JSON.stringify([...detailPins].sort())); }
     function togglePin(sectionKey) { if (detailPins.has(sectionKey)) detailPins.delete(sectionKey); else detailPins.add(sectionKey); persistPins(); applyDetailMode(); }
-    function pinButton(sectionKey) { return '<button class="region-link pin-control" data-pin-section="' + sectionKey + '" aria-label="' + (detailPins.has(sectionKey) ? 'Unpin section' : 'Pin section') + '">' + (detailPins.has(sectionKey) ? '📌 Unpin section' : '📌 Pin section') + '</button>'; }
+    function pinButton(sectionKey) { return '<button class="region-link pin-control" data-pin-section="' + sectionKey + '" aria-label="' + (detailPins.has(sectionKey) ? 'Unpin section' : 'Pin section') + '">' + (detailPins.has(sectionKey) ? '📌 Pinned · unpin' : '📌 Pin to pinned sections') + '</button>'; }
     function buildPinnedSectionCard(section, key) {
       const heading = section.querySelector('h3, summary');
       const headingTextNode = heading ? [...heading.childNodes].find((node) => node.nodeType === Node.TEXT_NODE) : null;
@@ -354,7 +354,7 @@ export function getAnalystConsoleClientScript(): string {
         if (isPinned) {
           if (!sectionNode.querySelector('[data-pinned-note]')) {
             const heading = sectionNode.querySelector('h3, summary');
-            if (heading instanceof HTMLElement) heading.insertAdjacentHTML('afterend', '<p class="section-pinned-note" data-pinned-note>This section is pinned above for quick compare and triage.</p>');
+            if (heading instanceof HTMLElement) heading.insertAdjacentHTML('afterend', '<p class="section-pinned-note" data-pinned-note>Pinned above. Use the pin control to unpin, or continue here in de-emphasized mode.</p>');
           }
         } else {
           sectionNode.querySelector('[data-pinned-note]')?.remove();
@@ -365,9 +365,9 @@ export function getAnalystConsoleClientScript(): string {
         pinnedArea.hidden = false;
         if (pinnedKeys.length === 0) {
           pinnedBody.innerHTML = '';
-          pinnedEmpty.innerHTML = '<strong>No pinned sections yet.</strong> Pin compare, disagreement, or stale-evidence sections to keep your scan order stable while switching regions.';
+          pinnedEmpty.innerHTML = '<strong>No pinned sections yet.</strong> Pin compare, disagreement, or stale-evidence sections to keep trust cues visible while you switch regions.';
         } else {
-          pinnedEmpty.textContent = 'Pinned sections stay available across regions and refreshes.';
+          pinnedEmpty.textContent = 'Pinned sections stay available across regions and refreshes. Original sections remain de-emphasized below to avoid duplicate clutter.';
           pinnedBody.innerHTML = pinnedKeys.map((key) => {
             const section = document.querySelector('#region-detail [data-section-key="' + key + '"]');
             return section instanceof HTMLElement ? buildPinnedSectionCard(section, key) : '';
@@ -450,16 +450,36 @@ export function getAnalystConsoleClientScript(): string {
       renderHistoryTable('delta-history-table', history, [{ key: 'snapshot_time', header: 'Snapshot', render: (v) => formatTimestamp(v) }, { key: 'delta_24h', header: 'Δ 24h', render: (v) => formatNum(Number(v), 1) }, { key: 'delta_7d', header: 'Δ 7d', render: (v) => formatNum(Number(v), 1) }, { key: 'rank_movement', header: 'Rank Δ', render: (v) => formatNum(Number(v), 0) }]);
       const compare = detail.compare ?? null;
       const compareHighlights = document.getElementById('compare-highlights');
+      const compareStateStrip = document.getElementById('compare-state-strip');
+      const compareTrustStrip = document.getElementById('compare-trust-strip');
       if (compare) {
+        const statusChanged = compare.left?.status_band !== compare.right?.status_band;
+        const confidenceChanged = compare.left?.confidence_band !== compare.right?.confidence_band;
+        const freshnessChanged = compare.left?.freshness_state !== compare.right?.freshness_state;
+        const evidenceChanged = compare.left?.evidence_state !== compare.right?.evidence_state;
         if (compareHighlights instanceof HTMLElement) {
           compareHighlights.innerHTML = [
-            ['What changed?', Number(compare.deltas?.composite_score) === 0 && compare.left?.status_band === compare.right?.status_band && compare.left?.confidence_band === compare.right?.confidence_band && compare.left?.freshness_state === compare.right?.freshness_state && compare.left?.evidence_state === compare.right?.evidence_state ? 'No material state change' : 'State or score shift detected'],
+            ['What changed?', Number(compare.deltas?.composite_score) === 0 && !statusChanged && !confidenceChanged && !freshnessChanged && !evidenceChanged ? 'No material state change' : 'State or score shift detected'],
             ['Trust direction', Number(compare.deltas?.composite_score) > 0 ? 'Degraded (+risk)' : (Number(compare.deltas?.composite_score) < 0 ? 'Improved (-risk)' : 'Flat')],
             ['Composite Δ', formatDeltaLabel(compare.deltas?.composite_score, 1)],
-            ['Disagreement', compare.flags?.disagreement_changed ? 'Appeared/disappeared' : 'No state change'],
-            ['Narrative-leading divergence', compare.flags?.divergence_changed ? 'Activated/deactivated' : 'No state change'],
+            ['Disagreement', compare.flags?.disagreement_changed ? 'Appeared/disappeared' : 'Unchanged'],
+            ['Narrative-leading divergence', compare.flags?.divergence_changed ? 'Activated/cleared' : 'Unchanged'],
             ['Compared against', compare.compare_mode === '24h-ago' ? '24h-ago snapshot' : 'Previous snapshot'],
           ].map(([label, value]) => '<article class="compare-card"><span class="scan-label">' + label + '</span><p class="scan-value">' + value + '</p></article>').join('');
+        }
+        if (compareStateStrip instanceof HTMLElement) {
+          compareStateStrip.innerHTML = '<h4>State changes</h4><div class="compare-chip-row">' + [
+            'Status: ' + (statusChanged ? 'changed' : 'unchanged'),
+            'Confidence: ' + (confidenceChanged ? 'changed' : 'unchanged'),
+            'Freshness: ' + (freshnessChanged ? 'changed' : 'unchanged'),
+            'Evidence: ' + (evidenceChanged ? 'changed' : 'unchanged'),
+          ].map((label) => '<span class="compare-chip">' + label + '</span>').join('') + '</div>';
+        }
+        if (compareTrustStrip instanceof HTMLElement) {
+          compareTrustStrip.innerHTML = '<h4>Trust-cue change strip</h4><div class="compare-chip-row">' + [
+            'Disagreement: ' + (compare.flags?.disagreement_changed ? 'appeared/disappeared' : 'unchanged'),
+            'Narrative-leading divergence: ' + (compare.flags?.divergence_changed ? 'activated/cleared' : 'unchanged'),
+          ].map((label) => '<span class="compare-chip">' + label + '</span>').join('') + '</div>';
         }
         renderHistoryTable('compare-summary-table', [
           { metric: 'Composite score', latest: formatNum(compare.left?.composite_score, 1), compared: formatNum(compare.right?.composite_score, 1), delta: formatDeltaLabel(compare.deltas?.composite_score, 1) },
@@ -471,8 +491,10 @@ export function getAnalystConsoleClientScript(): string {
         renderHistoryTable('compare-subscores-table', [{ metric: 'Conflict', delta: compare.deltas?.conflict_score }, { metric: 'Shipping', delta: compare.deltas?.chokepoint_score }, { metric: 'Oil', delta: compare.deltas?.oil_score }, { metric: 'Displacement', delta: compare.deltas?.displacement_score }, { metric: 'Narrative', delta: compare.deltas?.narrative_score }], [{ key: 'metric', header: 'Sub-score' }, { key: 'delta', header: 'Δ', render: (v) => formatDeltaLabel(v, 1) }]);
         renderHistoryTable('compare-factors-table', (compare.left?.top_factors ?? []).map((row, idx) => ({ latest_factor: row.factor_label, latest_source: row.source, other_factor: compare.right?.top_factors?.[idx]?.factor_label ?? '-', other_source: compare.right?.top_factors?.[idx]?.source ?? '-' })), [{ key: 'latest_factor', header: 'Latest factor' }, { key: 'latest_source', header: 'Latest source' }, { key: 'other_factor', header: 'Compared factor' }, { key: 'other_source', header: 'Compared source' }]);
         renderHistoryTable('compare-signals-table', [{ metric: 'Disagreement groups changed', value: compare.flags?.disagreement_changed ? 'yes' : 'no' }, { metric: 'Narrative-vs-physical cue changed', value: compare.flags?.divergence_changed ? 'yes' : 'no' }], [{ key: 'metric', header: 'Change signal' }, { key: 'value', header: 'Value' }]);
-      } else if (compareHighlights instanceof HTMLElement) {
-        compareHighlights.innerHTML = '<article class="compare-card"><span class="scan-label">Snapshot compare</span><p class="scan-value">No compare payload available.</p></article>';
+      } else {
+        if (compareHighlights instanceof HTMLElement) compareHighlights.innerHTML = '<article class="compare-card"><span class="scan-label">Snapshot compare</span><p class="scan-value">No compare payload available.</p></article>';
+        if (compareStateStrip instanceof HTMLElement) compareStateStrip.innerHTML = '<h4>State changes</h4><div class="compare-chip-row"><span class="compare-chip">No compare payload available</span></div>';
+        if (compareTrustStrip instanceof HTMLElement) compareTrustStrip.innerHTML = '<h4>Trust-cue change strip</h4><div class="compare-chip-row"><span class="compare-chip">No compare payload available</span></div>';
       }
       const triageContainer = document.getElementById('triage-notes'); if (triageContainer instanceof HTMLElement) { triageContainer.innerHTML = (Array.isArray(detail.triage_notes) ? detail.triage_notes : []).map((note) => '<article class="triage-note"><p><strong>' + note.title + '</strong></p><p>' + note.copy + '</p></article>').join(''); }
       addSectionPins();
@@ -522,8 +544,9 @@ export function getAnalystConsoleClientScript(): string {
     });
     document.body.addEventListener('mouseover', (event) => { const target = event.target; if (!(target instanceof HTMLElement)) return; const regionNode = target.closest('[data-region]'); if (!(regionNode instanceof HTMLElement)) return; const slug = regionNode.getAttribute('data-region'); if (!slug || slug === activeRegionSlug) return; setHoveredRegion(slug); });
     document.body.addEventListener('mouseout', (event) => { const target = event.target; if (!(target instanceof HTMLElement)) return; const regionNode = target.closest('[data-region]'); if (!(regionNode instanceof HTMLElement)) return; const related = event.relatedTarget; if (related instanceof HTMLElement && related.closest('[data-region]') === regionNode) return; if (hoveredRegionSlug && hoveredRegionSlug !== activeRegionSlug) setHoveredRegion(null); });
-    document.body.addEventListener('click', (event) => { const target = event.target; if (!(target instanceof HTMLElement)) return; const pin = target.closest('[data-pin-section]'); if (pin instanceof HTMLElement) { event.preventDefault(); const key = pin.getAttribute('data-pin-section'); if (key) { togglePin(key); lastDetailSignature = ''; void loadRegion(activeRegionSlug, true); } return; } const regionNode = target.closest('[data-region]'); if (!(regionNode instanceof HTMLElement)) return; const slug = regionNode.getAttribute('data-region'); if (!slug) return; event.preventDefault(); setHoveredRegion(null); void loadRegion(slug, true); });
-    document.getElementById('analyst-map').addEventListener('mousemove', (event) => { const target = event.target; if (!(target instanceof SVGElement)) return; const path = target.closest('.map-region'); if (!(path instanceof SVGElement)) { hideMapTooltip(); return; } const slug = path.getAttribute('data-region'); if (slug && slug !== activeRegionSlug) setHoveredRegion(slug); const tooltip = path.getAttribute('data-tooltip'); if (!tooltip) { hideMapTooltip(); return; } showMapTooltip(tooltip + ' · click to inspect', event.clientX, event.clientY); });
+    document.body.addEventListener('click', (event) => { const target = event.target; if (!(target instanceof HTMLElement)) return; const pin = target.closest('[data-pin-section]'); if (pin instanceof HTMLElement) { event.preventDefault(); const key = pin.getAttribute('data-pin-section'); if (key) { togglePin(key); lastDetailSignature = ''; void loadRegion(activeRegionSlug, true); } return; } const regionNode = target.closest('[data-region]'); if (!(regionNode instanceof HTMLElement)) return; const slug = regionNode.getAttribute('data-region'); if (!slug) return; event.preventDefault(); event.stopPropagation(); setHoveredRegion(null); void loadRegion(slug, true); });
+    document.getElementById('analyst-map').addEventListener('click', (event) => { const target = event.target; if (!(target instanceof SVGElement)) return; const path = target.closest('.map-region'); if (!(path instanceof SVGElement)) return; const slug = path.getAttribute('data-region'); if (!slug) return; event.preventDefault(); event.stopPropagation(); setHoveredRegion(null); void loadRegion(slug, true); });
+    document.getElementById('analyst-map').addEventListener('mousemove', (event) => { const target = event.target; if (!(target instanceof SVGElement)) return; const path = target.closest('.map-region'); if (!(path instanceof SVGElement)) { hideMapTooltip(); return; } const slug = path.getAttribute('data-region'); if (slug && slug !== activeRegionSlug) setHoveredRegion(slug); const tooltip = path.getAttribute('data-tooltip'); if (!tooltip) { hideMapTooltip(); return; } showMapTooltip(tooltip + ' · click to lock active region', event.clientX, event.clientY); });
     document.getElementById('analyst-map').addEventListener('mouseleave', () => { hideMapTooltip(); setHoveredRegion(null); });
 
     applyLayout();

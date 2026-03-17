@@ -32,7 +32,7 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
     .summary-label { color: #9eb7d8; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
     .summary-value { font-size: 14px; font-weight: 600; }
     .hint { color: #9ca8b7; font-size: 12px; }
-    .pin-control { margin-left: 8px; font-size: 11px; border: 1px solid #4d6d95; border-radius: 999px; padding: 1px 8px; text-decoration: none; }
+    .pin-control { margin-left: 8px; font-size: 11px; border: 1px solid #6f95c8; border-radius: 999px; padding: 1px 8px; text-decoration: none; background: #1b2b3f; color: #dcecff; }
     .filter-grid { display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 8px; }
     .filter-grid label { font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
     table { width: 100%; border-collapse: collapse; }
@@ -52,8 +52,8 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
     .map-legend { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; color: #9ca8b7; }
     .map-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
     .map-hidden { display: none; }
-    .map-region.active { stroke: #ffffff; stroke-width: 3.4; fill-opacity: 1; }
-    .map-region.hover { stroke: #9ad1ff; stroke-width: 2.2; fill-opacity: 0.88; }
+    .map-region.active { stroke: #ffffff; stroke-width: 3.8; fill-opacity: 1; filter: drop-shadow(0 0 3px rgba(255,255,255,0.35)); }
+    .map-region.hover { stroke: #9ad1ff; stroke-width: 2.4; fill-opacity: 0.9; }
     .map-region.dimmed { fill-opacity: 0.45; }
     .map-tooltip { position: fixed; pointer-events: none; background: #0f141d; border: 1px solid #4d6d95; color: #dcecff; border-radius: 6px; padding: 6px 8px; font-size: 12px; z-index: 20; max-width: 260px; box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
     .posture-banner { border: 1px solid #4d6d95; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; background: #142033; }
@@ -87,6 +87,10 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
     .section-pinned-hidden .pin-control { margin-left: 0; }
     .section-pinned-note { margin: 6px 0 0; font-size: 12px; color: #9eb7d8; }
     .compare-highlights { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin-bottom: 8px; }
+    .compare-strip { border: 1px solid #3a516e; border-radius: 6px; background: #0f1928; padding: 8px; margin-bottom: 8px; }
+    .compare-strip h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #a9c3e0; }
+    .compare-chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .compare-chip { border: 1px solid #4d6d95; border-radius: 999px; padding: 2px 8px; font-size: 11px; background: #121f31; }
     .compare-card { border: 1px solid #3a516e; border-radius: 6px; padding: 8px; background: #0f1928; }
     .compare-card p { margin: 0; }
     .compare-card .scan-label { display: block; margin-bottom: 4px; }
@@ -183,7 +187,7 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
             <svg id="analyst-map" viewBox="0 0 960 480" role="img" aria-label="Internal region geometry map"></svg>
           </div>
           <div class="map-legend" id="map-legend"></div>
-          <p id="map-interaction-copy" class="map-guidance">Hover for trust + momentum cues. Click to lock selection, then continue triage in table/detail.</p>
+          <p id="map-interaction-copy" class="map-guidance">Hover for trust + momentum cues. Click to lock active region, then continue triage in table/detail.</p>
           <div id="map-tooltip" class="map-tooltip" hidden></div>
         </section>
       </div>
@@ -235,7 +239,10 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
     </section>
     <section class="detail-section" data-section-key="compare">
       <h3>Snapshot compare</h3>
+      <p class="detail-subtitle">First-pass compare: state transitions, trust cues, and composite/sub-score deltas before deeper factor inspection.</p>
       <div id="compare-highlights" class="compare-highlights"></div>
+      <div id="compare-state-strip" class="compare-strip"></div>
+      <div id="compare-trust-strip" class="compare-strip"></div>
       <div class="compare-groups">
         <section class="compare-group"><h4>Score + state changes</h4><table id="compare-summary-table"></table></section>
         <section class="compare-group"><h4>Trust cue changes</h4><table id="compare-signals-table"></table></section>

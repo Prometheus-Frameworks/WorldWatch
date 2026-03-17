@@ -49,3 +49,8 @@
 - Pinned sections now behave more intentionally: clearer empty-state guidance, clearer pin control affordances, and reduced confusion at source location via de-emphasized original section shells when pinned.
 - Internal map ergonomics refined narrowly for region selection speed and triage context (clearer active emphasis + more useful tooltip cues) while keeping map subordinate to table/detail workflow.
 
+
+## Sprint note: analyst interaction polish pass (PR30)
+- Compare readability further tightened with compact deterministic strips for state and trust-cue changes before tabular inspection.
+- Pinned sections now communicate intent better (clearer empty state and controls) while reducing confusion from source-location duplication via explicit de-emphasis cues.
+- Internal map interactions were refined for faster region selection (click-to-lock, clearer active vs hover) while remaining subordinate to table/detail analyst flow.

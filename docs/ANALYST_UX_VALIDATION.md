@@ -46,6 +46,7 @@ Use these canonical fixture scenarios for spot checks:
 Run these after any detail-panel UX change touching compare, pins, or map sync:
 
 - **Compare first-scan readability**
+  - Verify compact state-change strip and trust-cue strip are visible above compare tables/cards and remain deterministic.
   - Confirm top compare cards answer in <10 seconds: what changed, trust direction (improved/degraded/flat), disagreement appeared/disappeared, narrative-leading divergence activated/deactivated.
   - Confirm compare remains deterministic: grouped cards/tables (score+state, trust cues, sub-score deltas, factor changes) with no black-box prose summary.
 
@@ -55,6 +56,7 @@ Run these after any detail-panel UX change touching compare, pins, or map sync:
   - Verify pin/unpin controls remain consistent in both original and pinned cards.
 
 - **Map usefulness for faster region selection**
+  - Verify click-to-lock selection on map keeps active region sync with table/detail selection.
   - Tooltip must expose trust + momentum context (status/score/confidence/freshness + delta).
   - Active region should remain visually unambiguous relative to hovered/dimmed regions.
   - Map selection and table/detail selection should stay in sync when filtering/sorting or switching regions.

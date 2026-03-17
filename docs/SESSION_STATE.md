@@ -28,3 +28,8 @@
 - Internal map ergonomics improved via clearer active emphasis and richer tooltip context to accelerate region selection/triage without shifting away from table/detail-first workflow.
 - Remaining friction: high pin counts can still add visual density; next likely priority is analyst polish with small operational guardrails around default/persistence edge cases.
 
+
+## Session update (PR30)
+- Added compact compare scan strips above compare tables so analysts can read state transitions and trust-cue changes in one pass while keeping deterministic table detail below.
+- Tightened pin affordances and messaging (clearer pin/unpin language, clearer empty state, and explicit de-emphasis note for original sections) while preserving `worldwatch.analyst.pins` persistence.
+- Improved map/table/detail coordination with explicit map click-to-lock behavior and clearer active/hover visual distinction without elevating map over table/detail workflow.
