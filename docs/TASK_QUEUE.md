@@ -37,3 +37,9 @@
 - Validate edge-case behavior with many pinned sections and rapid filter/sort region switching.
 - Decide whether next increment should prioritize analyst polish (density management), operational guardrails (default resets), or map hardening (geometry edge cases).
 
+
+## Completed: PR30 Analyst interaction polish pass (compare/pins/map sync)
+- [x] Added compact deterministic compare summary strips (state changes + trust-cue changes) above detailed compare groups.
+- [x] Improved pin UX clarity (empty/default guidance, stronger pin/unpin labels, explicit de-emphasized original-section behavior).
+- [x] Tightened map selection ergonomics (click-to-lock active region, clearer active/hover distinction, triage-oriented tooltip copy).
+- [x] Preserved Focus Mode default and existing compare/scoring determinism.

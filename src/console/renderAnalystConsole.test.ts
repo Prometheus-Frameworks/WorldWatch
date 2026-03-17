@@ -26,7 +26,7 @@ test('analyst console includes map-table coordination and triage readability aff
   });
 
   assert.ok(html.includes('.map-region.hover'));
-  assert.ok(html.includes('Hover for trust + momentum cues. Click to lock selection, then continue triage in table/detail.'));
+  assert.ok(html.includes('Hover for trust + momentum cues. Click to lock active region, then continue triage in table/detail.'));
   assert.ok(html.includes('id="triage-notes"'));
   assert.ok(html.includes('Array.isArray(detail.triage_notes) ? detail.triage_notes : []'));
   assert.ok(html.includes('Largest bars indicate strongest risk pressure.'));
@@ -61,6 +61,9 @@ test('analyst console includes focus mode, pinning, and snapshot compare control
   assert.ok(html.includes('Score + state changes'));
   assert.ok(html.includes('Trust cue changes'));
   assert.ok(html.includes('id="compare-highlights"'));
+  assert.ok(html.includes('id="compare-state-strip"'));
+  assert.ok(html.includes('id="compare-trust-strip"'));
+  assert.ok(html.includes('First-pass compare: state transitions'));
   assert.ok(html.includes('Reset analyst layout'));
   assert.ok(html.includes('id="pinned-sections-empty"'));
   assert.ok(html.includes('section-pinned-hidden'));
@@ -78,10 +81,16 @@ test('analyst client script persists compare mode and renders compare/pin readab
   assert.ok(html.includes('worldwatch.analyst.compare_mode'));
   assert.ok(html.includes('persistCompareMode'));
   assert.ok(html.includes('No pinned sections yet.'));
-  assert.ok(html.includes('scan order stable while switching regions'));
+  assert.ok(html.includes('Pin to pinned sections'));
+  assert.ok(html.includes('Pinned · unpin'));
+  assert.ok(html.includes('Original sections remain de-emphasized below to avoid duplicate clutter'));
+  assert.ok(html.includes('keep trust cues visible while you switch regions'));
   assert.ok(html.includes('Snapshot compare summary'));
   assert.ok(html.includes('What changed?'));
   assert.ok(html.includes('Trust direction'));
   assert.ok(html.includes('Composite Δ'));
   assert.ok(html.includes('Narrative-leading divergence'));
+  assert.ok(html.includes('Trust-cue change strip'));
+  assert.ok(html.includes('State changes'));
+  assert.ok(html.includes('click to lock active region'));
 });
