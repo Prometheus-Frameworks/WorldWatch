@@ -43,3 +43,20 @@ test('analyst console includes map-table coordination and triage readability aff
   assert.ok(html.includes('id="source-contributions-table"'));
   assert.ok(html.includes("source-contributions-table"));
 });
+
+
+test('analyst console includes focus mode, pinning, and snapshot compare controls', () => {
+  const html = renderAnalystConsole({
+    posture: 'internal',
+    bannerText: 'Internal-only workspace',
+    subtitleText: 'For internal analyst and operations workflows only.',
+  });
+
+  assert.ok(html.includes('id="detail-mode-select"'));
+  assert.ok(html.includes('worldwatch.analyst.detail_mode'));
+  assert.ok(html.includes('worldwatch.analyst.pins'));
+  assert.ok(html.includes('id="compare-select"'));
+  assert.ok(html.includes('Scan order: Escalation'));
+  assert.ok(html.includes('id="compare-summary-table"'));
+  assert.ok(html.includes('data-section-key="source_disagreement"'));
+});

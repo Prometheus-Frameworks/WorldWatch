@@ -12,6 +12,7 @@ import {
   getRecentFailures,
   getRecentSourceRuns,
   getRegionDetail,
+  getRegionCompare,
   getRegionSummaries,
   getSourceFreshness,
 } from './queries.ts';
@@ -426,4 +427,53 @@ test('getAnalystDashboard includes dashboard-ready triage spotlight payload', as
   assert.equal(payload.triage_summary.spotlight.length, 1);
   assert.equal(payload.triage_summary.spotlight[0].slug, 'levant');
   assert.equal(payload.triage_summary.spotlight[0].notes[0]?.title, 'Top mover (24h)');
+});
+
+
+test('getRegionCompare returns deterministic latest-vs-previous deltas', async () => {
+  const db: QueryableDb = {
+    async query<T>(sql: string) {
+      if (sql.includes('SELECT id FROM regions')) return { rows: [{ id: 7 }] as T[] };
+      if (sql.includes('FROM region_scores rs')) {
+        return {
+          rows: [
+            {
+              snapshot_time: '2026-01-02T00:00:00Z',
+              composite_score: 80,
+              status_band: 'high',
+              confidence_band: 'medium',
+              freshness_state: 'fresh',
+              evidence_state: 'confirmed',
+              conflict_score: 70,
+              chokepoint_score: 60,
+              oil_score: 50,
+              displacement_score: 40,
+              narrative_score: 30,
+              factors_json: [{ signalType: 'conflict.fatalities', normalizedValue: 80, source: 'acled', domain: 'conflictPressure', sourceReliability: 0.9, recencyMinutes: 20, movement: 'up' }],
+            },
+            {
+              snapshot_time: '2026-01-01T12:00:00Z',
+              composite_score: 74,
+              status_band: 'elevated',
+              confidence_band: 'medium',
+              freshness_state: 'stale',
+              evidence_state: 'partial',
+              conflict_score: 65,
+              chokepoint_score: 55,
+              oil_score: 45,
+              displacement_score: 35,
+              narrative_score: 25,
+              factors_json: [{ signalType: 'conflict.fatalities', normalizedValue: 70, source: 'acled', domain: 'conflictPressure', sourceReliability: 0.9, recencyMinutes: 180, movement: 'up' }],
+            },
+          ] as T[],
+        };
+      }
+      return { rows: [] as T[] };
+    },
+  };
+
+  const compare = await getRegionCompare(db, 'levant', 'previous');
+  assert.ok(compare);
+  assert.equal((compare as Record<string, unknown>).compare_mode, 'previous');
+  assert.equal((compare as { deltas: { composite_score: number } }).deltas.composite_score, 6);
 });

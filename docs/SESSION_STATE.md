@@ -15,3 +15,8 @@
 
 ## Next review target
 - Prioritize analyst polish with selective map ergonomics improvements, then operational guardrails if cue drift appears.
+
+## Session update (PR27)
+- Added analyst density controls in region detail: focus/full mode with local preference persistence (`worldwatch.analyst.detail_mode`).
+- Added section pinning for analyst-specific workflows (`worldwatch.analyst.pins`).
+- Added deterministic snapshot compare endpoint + UI rendering path for adjudication (`/api/regions/:slug/compare`).

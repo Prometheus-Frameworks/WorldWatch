@@ -16,6 +16,7 @@ import {
   getRecentSourceRuns,
   getRegionDetail,
   getRegionHistory,
+  getRegionCompare,
   getRegionSummaries,
   getSourceFreshness,
 } from './queries.ts';
@@ -194,6 +195,19 @@ async function routeRequest(
 
   if (path === '/api/ops/summary') {
     sendJson(res, 200, await getOpsSummary(db));
+    return;
+  }
+
+  const compareMatch = path.match(/^\/api\/regions\/([^/]+)\/compare$/);
+  if (compareMatch) {
+    const rightRaw = requestUrl.searchParams.get('right');
+    const right = rightRaw === '24h-ago' ? '24h-ago' : 'previous';
+    const result = await getRegionCompare(db, decodeURIComponent(compareMatch[1]), right);
+    if (!result) {
+      sendJson(res, 404, { error: 'not_found' });
+      return;
+    }
+    sendJson(res, 200, result);
     return;
   }
 
