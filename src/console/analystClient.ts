@@ -214,7 +214,7 @@ export function getAnalystConsoleClientScript(): string {
     let hasRenderedMapLegend = false;
     let detailMode = localStorage.getItem('worldwatch.analyst.detail_mode') === 'full' ? 'full' : 'focus';
     let detailPins = new Set(JSON.parse(localStorage.getItem('worldwatch.analyst.pins') ?? '[]'));
-    let compareMode = 'previous';
+    let compareMode = localStorage.getItem('worldwatch.analyst.compare_mode') === '24h-ago' ? '24h-ago' : 'previous';
 
     function formatTimestamp(value) {
       if (!value) return '-';
@@ -224,6 +224,17 @@ export function getAnalystConsoleClientScript(): string {
     function formatNum(value, digits = 2) {
       return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '-';
     }
+    function escapeHtml(value) {
+      return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+    }
+    function formatDeltaLabel(value, digits = 1) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return '<span class="compare-delta-flat">—</span>';
+      const cls = numeric > 0 ? 'compare-delta-up' : (numeric < 0 ? 'compare-delta-down' : 'compare-delta-flat');
+      const prefix = numeric > 0 ? '+' : '';
+      return '<span class="' + cls + '">' + prefix + numeric.toFixed(digits) + '</span>';
+    }
+    function persistCompareMode() { localStorage.setItem('worldwatch.analyst.compare_mode', compareMode); }
     function deriveNextActiveRegionSlug(visibleSlugs, currentActiveSlug) {
       if (currentActiveSlug && visibleSlugs.includes(currentActiveSlug)) return currentActiveSlug;
       return visibleSlugs[0] ?? null;
@@ -312,30 +323,45 @@ export function getAnalystConsoleClientScript(): string {
     function persistDetailMode() { localStorage.setItem('worldwatch.analyst.detail_mode', detailMode); }
     function persistPins() { localStorage.setItem('worldwatch.analyst.pins', JSON.stringify([...detailPins].sort())); }
     function togglePin(sectionKey) { if (detailPins.has(sectionKey)) detailPins.delete(sectionKey); else detailPins.add(sectionKey); persistPins(); applyDetailMode(); }
-    function pinButton(sectionKey) { return '<button class="region-link pin-control" data-pin-section="' + sectionKey + '">' + (detailPins.has(sectionKey) ? 'Unpin this section' : 'Pin this section') + '</button>'; }
+    function pinButton(sectionKey) { return '<button class="region-link pin-control" data-pin-section="' + sectionKey + '">' + (detailPins.has(sectionKey) ? 'Unpin section' : 'Pin section') + '</button>'; }
+    function buildPinnedSectionCard(section, key) {
+      const heading = section.querySelector('h3, summary');
+      const headingTextNode = heading ? [...heading.childNodes].find((node) => node.nodeType === Node.TEXT_NODE) : null;
+      const headingLabel = headingTextNode ? escapeHtml(headingTextNode.textContent ?? key) : (heading ? escapeHtml(heading.textContent ?? key) : escapeHtml(key));
+      const content = [...section.children].filter((node) => node !== heading).map((node) => node.outerHTML).join('');
+      return '<article class="pinned-card" data-pinned-key="' + key + '"><h4>' + headingLabel + pinButton(key) + '</h4>' + content + '</article>';
+    }
     function applyDetailMode() {
       const modeSelect = document.getElementById('detail-mode-select');
       if (modeSelect instanceof HTMLSelectElement) modeSelect.value = detailMode;
+      const compareSelect = document.getElementById('compare-select');
+      if (compareSelect instanceof HTMLSelectElement) compareSelect.value = compareMode;
       const scanHint = document.getElementById('scan-order-hint');
       if (scanHint instanceof HTMLElement) scanHint.hidden = detailMode !== 'focus';
       const collapsibles = document.querySelectorAll('#region-detail details.collapsible');
       for (const node of collapsibles) {
         if (!(node instanceof HTMLDetailsElement)) continue;
-        if (detailMode === 'focus') node.open = false;
-        else node.open = true;
+        node.open = detailMode === 'full';
       }
       const pinnedArea = document.getElementById('pinned-sections');
       const pinnedBody = document.getElementById('pinned-sections-body');
-      if (pinnedArea instanceof HTMLElement && pinnedBody instanceof HTMLElement) {
-        const pinnedKeys = [...detailPins];
+      const pinnedEmpty = document.getElementById('pinned-sections-empty');
+      for (const sectionNode of document.querySelectorAll('#region-detail [data-section-key]')) {
+        if (!(sectionNode instanceof HTMLElement)) continue;
+        const key = sectionNode.getAttribute('data-section-key');
+        sectionNode.classList.toggle('section-pinned-hidden', Boolean(key) && detailPins.has(key));
+      }
+      if (pinnedArea instanceof HTMLElement && pinnedBody instanceof HTMLElement && pinnedEmpty instanceof HTMLElement) {
+        const pinnedKeys = [...detailPins].sort();
+        pinnedArea.hidden = false;
         if (pinnedKeys.length === 0) {
-          pinnedArea.hidden = true;
           pinnedBody.innerHTML = '';
+          pinnedEmpty.textContent = 'No sections pinned yet. Pin frequently-used sections to keep them at the top.';
         } else {
-          pinnedArea.hidden = false;
+          pinnedEmpty.textContent = 'Pinned sections stay available across regions.';
           pinnedBody.innerHTML = pinnedKeys.map((key) => {
             const section = document.querySelector('#region-detail [data-section-key="' + key + '"]');
-            return section instanceof HTMLElement ? section.outerHTML : '';
+            return section instanceof HTMLElement ? buildPinnedSectionCard(section, key) : '';
           }).join('');
         }
       }
@@ -355,7 +381,28 @@ export function getAnalystConsoleClientScript(): string {
     function renderHistoryTable(id, rows, columns) { const table = document.getElementById(id); if (!(table instanceof HTMLTableElement)) return; if (!Array.isArray(rows) || rows.length === 0) { table.innerHTML = '<tr><td>No history available</td></tr>'; return; } const header = '<tr>' + columns.map((col) => '<th>' + col.header + '</th>').join('') + '</tr>'; const body = rows.map((row) => '<tr>' + columns.map((col) => { const raw = row[col.key]; const value = col.render ? col.render(raw, row) : raw; return '<td>' + String(value ?? '-') + '</td>'; }).join('') + '</tr>').join(''); table.innerHTML = header + body; }
     function renderDisagreementSourcesCell(sources) { if (!Array.isArray(sources) || sources.length === 0) return '<span class="muted-cell">No source-level disagreement details</span>'; return '<ul class="source-bullets">' + sources.map((source) => '<li><strong>' + String(source.source ?? '-') + '</strong> · ' + String(source.movement_direction ?? '-') + ' · ' + formatNum(Number(source.recency_minutes), 0) + 'm · r=' + formatNum(Number(source.source_reliability), 2) + '</li>').join('') + '</ul>'; }
     function disagreementTypesText(types) { if (!Array.isArray(types) || types.length === 0) return '<span class="muted-cell">—</span>'; return types.join('<br>'); }
-    function renderScanCards(detail, explainabilitySummary, explainabilityGroups) { const container = document.getElementById('explainability-scan-cards'); if (!(container instanceof HTMLElement)) return; const mixedCount = Array.isArray(explainabilityGroups.mixed_signal_indicators) ? explainabilityGroups.mixed_signal_indicators.length : 0; const staleCount = Array.isArray(explainabilityGroups.stale_high_impact_sources) ? explainabilityGroups.stale_high_impact_sources.length : 0; const disagreementCount = Array.isArray(explainabilityGroups.source_disagreement_groups) ? explainabilityGroups.source_disagreement_groups.length : 0; const triageCount = Array.isArray(detail.triage_notes) ? detail.triage_notes.length : 0; container.innerHTML = ['<article class="scan-card"><p class="scan-label">Escalation posture</p><p class="scan-value">' + String(explainabilitySummary.escalation_label ?? '-') + '</p><p class="scan-note">' + String(explainabilitySummary.escalation_copy ?? '') + '</p></article>','<article class="scan-card"><p class="scan-label">Freshness state</p><p class="scan-value">' + String(explainabilitySummary.freshness_state ?? '-') + '</p><p class="scan-note">'+ String(explainabilitySummary.freshness_copy ?? '') + '</p></article>','<article class="scan-card"><p class="scan-label">Confidence / evidence</p><p class="scan-value">' + String(explainabilitySummary.confidence_band ?? '-') + ' / ' + String(explainabilitySummary.evidence_state ?? '-') + '</p><p class="scan-note">Trust posture at a glance.</p></article>','<article class="scan-card"><p class="scan-label">Mixed-signal disagreements</p><p class="scan-value">' + String(mixedCount) + ' domains · ' + String(disagreementCount) + ' groups</p><p class="scan-note">Resolve direction/reliability conflicts before escalation.</p></article>','<article class="scan-card"><p class="scan-label">Stale high-impact evidence</p><p class="scan-value">' + String(staleCount) + '</p><p class="scan-note">Refresh or verify if this count is elevated.</p></article>','<article class="scan-card"><p class="scan-label">Triage notes</p><p class="scan-value">' + String(triageCount) + '</p><p class="scan-note">Decision support notes in this snapshot.</p></article>'].join(''); }
+    function renderScanCards(detail, explainabilitySummary, explainabilityGroups) {
+      const container = document.getElementById('explainability-scan-cards');
+      if (!(container instanceof HTMLElement)) return;
+      const staleCount = Array.isArray(explainabilityGroups.stale_high_impact_sources) ? explainabilityGroups.stale_high_impact_sources.length : 0;
+      const disagreementCount = Array.isArray(explainabilityGroups.source_disagreement_groups) ? explainabilityGroups.source_disagreement_groups.length : 0;
+      const divergence = explainabilityGroups.narrative_physical_divergence;
+      const compare = detail.compare ?? null;
+      const compareSummary = compare ? formatDeltaLabel(compare.deltas?.composite_score, 1) : '<span class="compare-delta-flat">No comparison</span>';
+      const cards = [
+        '<article class="scan-card"><p class="scan-label">Escalation posture</p><p class="scan-value">' + String(explainabilitySummary.escalation_label ?? '-') + '</p><p class="scan-note">' + String(explainabilitySummary.escalation_copy ?? '') + '</p></article>',
+        '<article class="scan-card"><p class="scan-label">Freshness / confidence / evidence</p><p class="scan-value">' + String(explainabilitySummary.freshness_state ?? '-') + ' · ' + String(explainabilitySummary.confidence_band ?? '-') + ' · ' + String(explainabilitySummary.evidence_state ?? '-') + '</p><p class="scan-note">Trust + recency posture.</p></article>',
+      ];
+      if (divergence?.is_active) {
+        cards.push('<article class="scan-card"><p class="scan-label">Narrative-vs-physical divergence cue</p><p class="scan-value">Active</p><p class="scan-note">' + String(divergence.analyst_copy ?? '') + '</p></article>');
+      }
+      cards.push(
+        '<article class="scan-card"><p class="scan-label">Disagreement summary</p><p class="scan-value">' + String(disagreementCount) + ' groups</p><p class="scan-note">Resolve source disagreement before escalation.</p></article>',
+        '<article class="scan-card"><p class="scan-label">Stale high-impact sources</p><p class="scan-value">' + String(staleCount) + '</p><p class="scan-note">Refresh stale high-impact inputs.</p></article>',
+        '<article class="scan-card"><p class="scan-label">Snapshot compare summary</p><p class="scan-value">' + compareSummary + '</p><p class="scan-note">Composite Δ latest vs ' + (compare?.compare_mode === '24h-ago' ? '24h-ago' : 'previous') + '.</p></article>',
+      );
+      container.innerHTML = cards.join('');
+    }
     function renderDetail(detail) {
       const container = document.getElementById('region-detail');
       if (!(container instanceof HTMLElement)) return;
@@ -393,11 +440,31 @@ export function getAnalystConsoleClientScript(): string {
       renderHistoryTable('score-history-table', history, [{ key: 'snapshot_time', header: 'Snapshot', render: (v) => formatTimestamp(v) }, { key: 'composite_score', header: 'Composite', render: (v) => formatNum(Number(v), 1) }, { key: 'status_band', header: 'Status' }, { key: 'confidence_band', header: 'Confidence' }]);
       renderHistoryTable('delta-history-table', history, [{ key: 'snapshot_time', header: 'Snapshot', render: (v) => formatTimestamp(v) }, { key: 'delta_24h', header: 'Δ 24h', render: (v) => formatNum(Number(v), 1) }, { key: 'delta_7d', header: 'Δ 7d', render: (v) => formatNum(Number(v), 1) }, { key: 'rank_movement', header: 'Rank Δ', render: (v) => formatNum(Number(v), 0) }]);
       const compare = detail.compare ?? null;
+      const compareHighlights = document.getElementById('compare-highlights');
       if (compare) {
-        renderHistoryTable('compare-summary-table', [{ metric: 'Composite', left: compare.left?.composite_score, right: compare.right?.composite_score, delta: compare.deltas?.composite_score }, { metric: 'Status band', left: compare.left?.status_band, right: compare.right?.status_band, delta: compare.left?.status_band === compare.right?.status_band ? 'unchanged' : 'changed' }, { metric: 'Confidence/Freshness/Evidence', left: String(compare.left?.confidence_band ?? '-') + '/' + String(compare.left?.freshness_state ?? '-') + '/' + String(compare.left?.evidence_state ?? '-'), right: String(compare.right?.confidence_band ?? '-') + '/' + String(compare.right?.freshness_state ?? '-') + '/' + String(compare.right?.evidence_state ?? '-'), delta: '—' }], [{ key: 'metric', header: 'Metric' }, { key: 'left', header: 'Latest' }, { key: 'right', header: compare.compare_mode === '24h-ago' ? '24h-ago' : 'Previous' }, { key: 'delta', header: 'Δ' }]);
-        renderHistoryTable('compare-subscores-table', [{ metric: 'Conflict', delta: compare.deltas?.conflict_score }, { metric: 'Shipping', delta: compare.deltas?.chokepoint_score }, { metric: 'Oil', delta: compare.deltas?.oil_score }, { metric: 'Displacement', delta: compare.deltas?.displacement_score }, { metric: 'Narrative', delta: compare.deltas?.narrative_score }], [{ key: 'metric', header: 'Sub-score' }, { key: 'delta', header: 'Δ', render: (v) => formatNum(Number(v), 1) }]);
+        if (compareHighlights instanceof HTMLElement) {
+          compareHighlights.innerHTML = [
+            ['Composite Δ', formatDeltaLabel(compare.deltas?.composite_score, 1)],
+            ['Status changed', compare.left?.status_band === compare.right?.status_band ? 'No' : 'Yes'],
+            ['Confidence changed', compare.left?.confidence_band === compare.right?.confidence_band ? 'No' : 'Yes'],
+            ['Freshness changed', compare.left?.freshness_state === compare.right?.freshness_state ? 'No' : 'Yes'],
+            ['Evidence changed', compare.left?.evidence_state === compare.right?.evidence_state ? 'No' : 'Yes'],
+            ['Disagreement flag', compare.flags?.disagreement_changed ? 'Changed' : 'Unchanged'],
+            ['Divergence cue', compare.flags?.divergence_changed ? 'State changed' : 'Unchanged'],
+          ].map(([label, value]) => '<article class="compare-card"><span class="scan-label">' + label + '</span><p class="scan-value">' + value + '</p></article>').join('');
+        }
+        renderHistoryTable('compare-summary-table', [
+          { metric: 'Composite score', latest: formatNum(compare.left?.composite_score, 1), compared: formatNum(compare.right?.composite_score, 1), delta: formatDeltaLabel(compare.deltas?.composite_score, 1) },
+          { metric: 'Status band', latest: compare.left?.status_band, compared: compare.right?.status_band, delta: compare.left?.status_band === compare.right?.status_band ? 'unchanged' : 'changed' },
+          { metric: 'Confidence', latest: compare.left?.confidence_band, compared: compare.right?.confidence_band, delta: compare.left?.confidence_band === compare.right?.confidence_band ? 'unchanged' : 'changed' },
+          { metric: 'Freshness', latest: compare.left?.freshness_state, compared: compare.right?.freshness_state, delta: compare.left?.freshness_state === compare.right?.freshness_state ? 'unchanged' : 'changed' },
+          { metric: 'Evidence', latest: compare.left?.evidence_state, compared: compare.right?.evidence_state, delta: compare.left?.evidence_state === compare.right?.evidence_state ? 'unchanged' : 'changed' },
+        ], [{ key: 'metric', header: 'Metric' }, { key: 'latest', header: 'Latest' }, { key: 'compared', header: compare.compare_mode === '24h-ago' ? '24h-ago' : 'Previous' }, { key: 'delta', header: 'Δ / state' }]);
+        renderHistoryTable('compare-subscores-table', [{ metric: 'Conflict', delta: compare.deltas?.conflict_score }, { metric: 'Shipping', delta: compare.deltas?.chokepoint_score }, { metric: 'Oil', delta: compare.deltas?.oil_score }, { metric: 'Displacement', delta: compare.deltas?.displacement_score }, { metric: 'Narrative', delta: compare.deltas?.narrative_score }], [{ key: 'metric', header: 'Sub-score' }, { key: 'delta', header: 'Δ', render: (v) => formatDeltaLabel(v, 1) }]);
         renderHistoryTable('compare-factors-table', (compare.left?.top_factors ?? []).map((row, idx) => ({ latest_factor: row.factor_label, latest_source: row.source, other_factor: compare.right?.top_factors?.[idx]?.factor_label ?? '-', other_source: compare.right?.top_factors?.[idx]?.source ?? '-' })), [{ key: 'latest_factor', header: 'Latest factor' }, { key: 'latest_source', header: 'Latest source' }, { key: 'other_factor', header: 'Compared factor' }, { key: 'other_source', header: 'Compared source' }]);
         renderHistoryTable('compare-signals-table', [{ metric: 'Disagreement groups changed', value: compare.flags?.disagreement_changed ? 'yes' : 'no' }, { metric: 'Narrative-vs-physical cue changed', value: compare.flags?.divergence_changed ? 'yes' : 'no' }], [{ key: 'metric', header: 'Change signal' }, { key: 'value', header: 'Value' }]);
+      } else if (compareHighlights instanceof HTMLElement) {
+        compareHighlights.innerHTML = '<article class="compare-card"><span class="scan-label">Snapshot compare</span><p class="scan-value">No compare payload available.</p></article>';
       }
       const triageContainer = document.getElementById('triage-notes'); if (triageContainer instanceof HTMLElement) { triageContainer.innerHTML = (Array.isArray(detail.triage_notes) ? detail.triage_notes : []).map((note) => '<article class="triage-note"><p><strong>' + note.title + '</strong></p><p>' + note.copy + '</p></article>').join(''); }
       addSectionPins();
@@ -430,7 +497,21 @@ export function getAnalystConsoleClientScript(): string {
     document.getElementById('filter-evidence-state').addEventListener('change', () => { void syncRegionViewsAndMaybeLoadDetail(false); });
     document.getElementById('analyst-layout').addEventListener('change', () => applyLayout());
     document.getElementById('detail-mode-select').addEventListener('change', (event) => { const target = event.target; if (target instanceof HTMLSelectElement) { detailMode = target.value === 'full' ? 'full' : 'focus'; persistDetailMode(); applyDetailMode(); lastDetailSignature = ''; void loadRegion(activeRegionSlug, true); } });
-    document.getElementById('compare-select').addEventListener('change', (event) => { const target = event.target; if (target instanceof HTMLSelectElement) { compareMode = target.value === '24h-ago' ? '24h-ago' : 'previous'; lastDetailSignature = ''; void loadRegion(activeRegionSlug, true); } });
+    document.getElementById('compare-select').addEventListener('change', (event) => { const target = event.target; if (target instanceof HTMLSelectElement) { compareMode = target.value === '24h-ago' ? '24h-ago' : 'previous'; persistCompareMode(); lastDetailSignature = ''; void loadRegion(activeRegionSlug, true); } });
+    document.getElementById('reset-analyst-layout').addEventListener('click', () => {
+      localStorage.removeItem('worldwatch.analyst.detail_mode');
+      localStorage.removeItem('worldwatch.analyst.pins');
+      localStorage.removeItem('worldwatch.analyst.compare_mode');
+      detailMode = 'focus';
+      detailPins = new Set();
+      compareMode = 'previous';
+      persistDetailMode();
+      persistPins();
+      persistCompareMode();
+      applyDetailMode();
+      lastDetailSignature = '';
+      if (activeRegionSlug) void loadRegion(activeRegionSlug, true);
+    });
     document.body.addEventListener('mouseover', (event) => { const target = event.target; if (!(target instanceof HTMLElement)) return; const regionNode = target.closest('[data-region]'); if (!(regionNode instanceof HTMLElement)) return; const slug = regionNode.getAttribute('data-region'); if (!slug || slug === activeRegionSlug) return; setHoveredRegion(slug); });
     document.body.addEventListener('mouseout', (event) => { const target = event.target; if (!(target instanceof HTMLElement)) return; const regionNode = target.closest('[data-region]'); if (!(regionNode instanceof HTMLElement)) return; const related = event.relatedTarget; if (related instanceof HTMLElement && related.closest('[data-region]') === regionNode) return; if (hoveredRegionSlug && hoveredRegionSlug !== activeRegionSlug) setHoveredRegion(null); });
     document.body.addEventListener('click', (event) => { const target = event.target; if (!(target instanceof HTMLElement)) return; const pin = target.closest('[data-pin-section]'); if (pin instanceof HTMLElement) { event.preventDefault(); const key = pin.getAttribute('data-pin-section'); if (key) { togglePin(key); lastDetailSignature = ''; void loadRegion(activeRegionSlug, true); } return; } const regionNode = target.closest('[data-region]'); if (!(regionNode instanceof HTMLElement)) return; const slug = regionNode.getAttribute('data-region'); if (!slug) return; event.preventDefault(); setHoveredRegion(null); void loadRegion(slug, true); });

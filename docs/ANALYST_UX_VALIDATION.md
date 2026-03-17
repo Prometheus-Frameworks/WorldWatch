@@ -6,28 +6,26 @@ A lightweight internal checklist for analyst-facing detail panel changes. Keep t
 
 For at least 3 representative snapshots (normal, disagreement-heavy, stale-heavy):
 
-- **Speed to interpret detail panel**
-  - Can an analyst state escalation posture and trust status in under 60 seconds?
-  - Confirm first scan path: escalation posture → freshness/confidence/evidence → mixed disagreement → stale high-impact evidence.
+- **First-scan usefulness in Focus Mode**
+  - Can an analyst answer “should I escalate?” in under 60 seconds from the first visible stack?
+  - Confirm scan path is visible in one pass: escalation posture → freshness/confidence/evidence → divergence cue (when active) → disagreement summary → stale high-impact sources → snapshot compare summary.
+  - Confirm deep-detail sections remain collapsed by default in Focus Mode.
 
-- **Misread risk: stale + high-risk**
-  - If status is high/critical while freshness is aging/stale, does the panel clearly signal verification before escalation?
-  - Check that stale high-impact count and rows are visible without scrolling deep into raw signals.
+- **Compare readability (“what changed?”)**
+  - Can analyst identify composite delta, status/confidence/freshness/evidence changes, and sub-score deltas without reading prose?
+  - Confirm disagreement-change and divergence-change flags are obvious and deterministic.
+  - Confirm compare remains table/card based (no opaque narrative summaries).
 
-- **Mixed-signal disagreement clarity**
-  - Can analyst identify disagreement domains and the strongest source split (direction + reliability) in one pass?
-  - Verify disagreement group ordering is deterministic and stable across refreshes.
+- **Pinned-section usefulness vs clutter**
+  - Empty pinned state clearly explains what to do next.
+  - Pin/unpin behavior is obvious and stable; pinned sections do not confusingly duplicate original sections.
+  - Pin persistence survives region changes and refreshes (`worldwatch.analyst.pins`).
 
-- **Narrative-vs-physical divergence clarity**
-  - If active, confirm cue appears with explicit caution framing.
-  - Confirm cue is absent when physical domains are rising.
-
-- **Escalation judgment confidence**
-  - Analyst should be able to choose one deterministic posture:
-    - high severity, low confidence → investigate carefully,
-    - high severity, high confidence → strong attention signal,
-    - narrative-leading without physical confirmation → caution,
-    - otherwise routine monitoring.
+- **Escalation judgment confidence + speed**
+  - Analyst can deterministically answer both:
+    - “what changed?” from compare,
+    - “should I escalate?” from posture/trust/disagreement/staleness cues.
+  - Posture and policy visibility remain present after layout and mode toggles.
 
 ## Validation scenarios (fixture-backed)
 
@@ -42,10 +40,3 @@ Use these canonical fixture scenarios for spot checks:
 
 - `npm test -- src/api/analystPayload.test.ts`
 - `npm test -- src/console/renderAnalystConsole.test.ts`
-
-
-## PR27 focus + compare acceptance updates
-- Region detail now defaults to **Focus mode** with first-scan stack: escalation posture, state cards, narrative-vs-physical cue (when active), disagreement summary, and stale high-impact sources.
-- Full detail remains available via mode toggle and analyst-specific section pinning (`worldwatch.analyst.pins`).
-- Snapshot compare supports deterministic **Latest vs Previous** (default) and **Latest vs 24h-ago** when history permits, with explicit score/sub-score/factor/disagreement/divergence deltas.
-- Scan-order reinforcement copy is visible in focus mode: `Escalation → States → Disagreement → Stale high-impact → (expand sections as needed)`.
