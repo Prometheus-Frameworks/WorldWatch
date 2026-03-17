@@ -20,6 +20,8 @@ export interface RegionSummary {
   snapshot_time: string;
   delta_24h: number;
   delta_7d: number;
+  source_quality_affected: boolean;
+  source_quality_cue: string;
 }
 
 export interface RegionGeoRow extends RegionSummary {
@@ -102,6 +104,30 @@ export interface OpsSummary {
   latest_cycle_records_processed: number;
   latest_snapshot_alerts_generated: number;
   latest_snapshot_regions_scored: number;
+  source_degradation: {
+    stale_source_count_24h: number;
+    stale_source_count_prev_24h: number;
+    stale_source_count_delta_24h: number;
+    source_failures_24h: number;
+    source_failures_prev_24h: number;
+    source_failures_delta_24h: number;
+    recurring_patterns: Array<{
+      source_name: string;
+      stale: boolean;
+      consecutive_failures: number;
+      failures_24h: number;
+      latest_success_age_minutes: number | null;
+      pattern: 'recurring-failures' | 'stale-with-failures' | 'stable';
+    }>;
+  };
+}
+
+interface SourcePatternRow {
+  source_name: string;
+  stale: boolean;
+  consecutive_failures: number;
+  failures_24h: number;
+  latest_success_age_minutes: number | null;
 }
 
 export interface AnalystSummary {
@@ -143,7 +169,14 @@ export async function getRegionSummaries(db: QueryableDb): Promise<RegionSummary
             rs.evidence_state::text as evidence_state,
             rs.snapshot_time,
             COALESCE(rd.delta_24h, 0) AS delta_24h,
-            COALESCE(rd.delta_7d, 0) AS delta_7d
+            COALESCE(rd.delta_7d, 0) AS delta_7d,
+            (rs.freshness_state <> 'fresh' AND (rs.confidence_band = 'low' OR rs.evidence_state IN ('mixed', 'incomplete'))) AS source_quality_affected,
+            CASE
+              WHEN rs.freshness_state = 'fresh' THEN 'Region signal quality currently healthy'
+              WHEN rs.confidence_band = 'low' THEN 'Potential source-quality drag: stale freshness and low confidence'
+              WHEN rs.evidence_state IN ('mixed', 'incomplete') THEN 'Potential source-quality drag: stale freshness and incomplete/mixed evidence'
+              ELSE 'Watch source quality; partial degradation present'
+            END AS source_quality_cue
       FROM regions r
       JOIN LATERAL (
         SELECT *
@@ -174,6 +207,13 @@ export async function getRegionGeo(db: QueryableDb): Promise<RegionGeoRow[]> {
             rs.snapshot_time,
             COALESCE(rd.delta_24h, 0) AS delta_24h,
             COALESCE(rd.delta_7d, 0) AS delta_7d,
+            (rs.freshness_state <> 'fresh' AND (rs.confidence_band = 'low' OR rs.evidence_state IN ('mixed', 'incomplete'))) AS source_quality_affected,
+            CASE
+              WHEN rs.freshness_state = 'fresh' THEN 'Region signal quality currently healthy'
+              WHEN rs.confidence_band = 'low' THEN 'Potential source-quality drag: stale freshness and low confidence'
+              WHEN rs.evidence_state IN ('mixed', 'incomplete') THEN 'Potential source-quality drag: stale freshness and incomplete/mixed evidence'
+              ELSE 'Watch source quality; partial degradation present'
+            END AS source_quality_cue,
             ST_AsGeoJSON(r.geometry::geometry)::jsonb AS geometry
       FROM regions r
       JOIN LATERAL (
@@ -716,7 +756,7 @@ export async function getOpsHealth(db: QueryableDb): Promise<Record<string, unkn
 }
 
 export async function getOpsSummary(db: QueryableDb): Promise<OpsSummary> {
-  const [latestCycle, sourceFreshness, recentFailures, latestSourceRuns, latestSnapshotStats, lastSuccessCycle] = await Promise.all([
+  const [latestCycle, sourceFreshness, recentFailures, latestSourceRuns, latestSnapshotStats, lastSuccessCycle, staleTrend, failureTrend, recurringPatterns] = await Promise.all([
     getLatestCycleStatus(db),
     getSourceFreshness(db),
     getRecentFailures(db, 25),
@@ -768,10 +808,99 @@ export async function getOpsSummary(db: QueryableDb): Promise<OpsSummary> {
         ORDER BY finished_at DESC
         LIMIT 1`,
     ),
+    db.query<{ stale_source_count_24h: number; stale_source_count_prev_24h: number }>(
+      `WITH latest_per_source AS (
+          SELECT ds.name,
+                 ds.freshness_minutes,
+                 (
+                   SELECT jr.finished_at
+                     FROM job_runs jr
+                    WHERE (jr.job_name = ds.name OR jr.job_name = REPLACE(ds.name, '-', '_'))
+                      AND jr.job_type = 'source'
+                      AND jr.status = 'success'
+                    ORDER BY jr.finished_at DESC
+                    LIMIT 1
+                 ) AS last_success_at
+            FROM data_sources ds
+       )
+       SELECT COUNT(*) FILTER (
+                WHERE (NOW() - COALESCE(last_success_at, to_timestamp(0))) > make_interval(mins => freshness_minutes)
+            )::INT AS stale_source_count_24h,
+            COUNT(*) FILTER (
+                WHERE ((NOW() - interval '24 hours') - COALESCE(last_success_at, to_timestamp(0))) > make_interval(mins => freshness_minutes)
+            )::INT AS stale_source_count_prev_24h
+         FROM latest_per_source`,
+    ),
+    db.query<{ source_failures_24h: number; source_failures_prev_24h: number }>(
+      `SELECT COUNT(*) FILTER (
+                WHERE job_type = 'source' AND status IN ('failed', 'partial') AND started_at >= NOW() - interval '24 hours'
+            )::INT AS source_failures_24h,
+            COUNT(*) FILTER (
+                WHERE job_type = 'source' AND status IN ('failed', 'partial') AND started_at < NOW() - interval '24 hours' AND started_at >= NOW() - interval '48 hours'
+            )::INT AS source_failures_prev_24h
+         FROM job_runs`,
+    ),
+    db.query<SourcePatternRow>(
+      `WITH source_base AS (
+          SELECT ds.name AS source_name,
+                 ds.freshness_minutes,
+                 (
+                   SELECT jr.finished_at
+                     FROM job_runs jr
+                    WHERE (jr.job_name = ds.name OR jr.job_name = REPLACE(ds.name, '-', '_'))
+                      AND jr.job_type = 'source'
+                      AND jr.status = 'success'
+                    ORDER BY jr.finished_at DESC
+                    LIMIT 1
+                 ) AS last_success_at,
+                 (
+                   SELECT COUNT(*)::INT
+                     FROM job_runs jr
+                    WHERE (jr.job_name = ds.name OR jr.job_name = REPLACE(ds.name, '-', '_'))
+                      AND jr.job_type = 'source'
+                      AND jr.status IN ('failed', 'partial')
+                      AND jr.started_at >= NOW() - interval '24 hours'
+                 ) AS failures_24h
+            FROM data_sources ds
+       ),
+       sequenced_runs AS (
+          SELECT ds.name AS source_name,
+                 jr.status,
+                 ROW_NUMBER() OVER (PARTITION BY ds.name ORDER BY jr.started_at DESC) AS run_rank
+            FROM data_sources ds
+            JOIN job_runs jr
+              ON (jr.job_name = ds.name OR jr.job_name = REPLACE(ds.name, '-', '_'))
+             AND jr.job_type = 'source'
+       )
+       SELECT sb.source_name,
+              CASE
+                WHEN sb.last_success_at IS NULL THEN true
+                ELSE (NOW() - sb.last_success_at) > make_interval(mins => sb.freshness_minutes)
+              END AS stale,
+              COALESCE((
+                SELECT MIN(sr.run_rank) - 1
+                  FROM sequenced_runs sr
+                 WHERE sr.source_name = sb.source_name
+                   AND sr.status = 'success'
+              ), (
+                SELECT COUNT(*)
+                  FROM sequenced_runs sr
+                 WHERE sr.source_name = sb.source_name
+              ), 0)::INT AS consecutive_failures,
+              COALESCE(sb.failures_24h, 0)::INT AS failures_24h,
+              CASE
+                WHEN sb.last_success_at IS NULL THEN NULL
+                ELSE ROUND(EXTRACT(EPOCH FROM (NOW() - sb.last_success_at)) / 60.0)::INT
+              END AS latest_success_age_minutes
+         FROM source_base sb
+        ORDER BY consecutive_failures DESC, failures_24h DESC, sb.source_name ASC`,
+    ),
   ]);
 
   const staleSources = sourceFreshness.filter((row) => row.stale).map((row) => row.source_name);
   const snapshotRow = latestSnapshotStats.rows[0];
+  const staleTrendRow = staleTrend.rows[0] ?? { stale_source_count_24h: staleSources.length, stale_source_count_prev_24h: staleSources.length };
+  const failureTrendRow = failureTrend.rows[0] ?? { source_failures_24h: 0, source_failures_prev_24h: 0 };
 
 
   return {
@@ -789,6 +918,26 @@ export async function getOpsSummary(db: QueryableDb): Promise<OpsSummary> {
     latest_cycle_records_processed: latestCycle?.records_processed ?? 0,
     latest_snapshot_alerts_generated: snapshotRow?.alerts_generated ?? 0,
     latest_snapshot_regions_scored: snapshotRow?.regions_scored ?? 0,
+    source_degradation: {
+      stale_source_count_24h: staleTrendRow.stale_source_count_24h,
+      stale_source_count_prev_24h: staleTrendRow.stale_source_count_prev_24h,
+      stale_source_count_delta_24h: staleTrendRow.stale_source_count_24h - staleTrendRow.stale_source_count_prev_24h,
+      source_failures_24h: failureTrendRow.source_failures_24h,
+      source_failures_prev_24h: failureTrendRow.source_failures_prev_24h,
+      source_failures_delta_24h: failureTrendRow.source_failures_24h - failureTrendRow.source_failures_prev_24h,
+      recurring_patterns: recurringPatterns.rows.map((row) => ({
+        source_name: row.source_name,
+        stale: row.stale,
+        consecutive_failures: row.consecutive_failures,
+        failures_24h: row.failures_24h,
+        latest_success_age_minutes: row.latest_success_age_minutes,
+        pattern: row.consecutive_failures >= 2
+          ? 'recurring-failures'
+          : row.stale && row.failures_24h > 0
+            ? 'stale-with-failures'
+            : 'stable',
+      })),
+    },
   };
 }
 

@@ -79,7 +79,16 @@ export function getOpsConsoleClientScript(): string {
       ]);
 
       renderLatestCycle(latest);
-      document.getElementById('ops-summary').textContent = JSON.stringify(summary, null, 2);
+      const opsSummaryEl = document.getElementById('ops-summary');
+      if (opsSummaryEl) {
+        const compactSummary = {
+          status: summary?.latest_cycle?.status ?? 'unknown',
+          stale_source_count: summary?.stale_source_count ?? 0,
+          recent_failure_count: summary?.recent_failure_count ?? 0,
+          source_degradation: summary?.source_degradation ?? null,
+        };
+        opsSummaryEl.textContent = JSON.stringify(compactSummary, null, 2);
+      }
 
       renderTable('cycle-runs-table', cycleRuns, [
         { key: 'started_at', header: 'Started', render: (v) => formatTimestamp(v) },
@@ -109,6 +118,28 @@ export function getOpsConsoleClientScript(): string {
         { key: 'freshness_minutes', header: 'Freshness window' },
         { key: 'stale', header: 'Stale' },
       ]);
+
+      const sourceDegradationRows = Array.isArray(summary?.source_degradation?.recurring_patterns)
+        ? summary.source_degradation.recurring_patterns
+        : [];
+
+      renderTable('source-degradation-table', sourceDegradationRows, [
+        { key: 'source_name', header: 'Source' },
+        { key: 'pattern', header: 'Pattern' },
+        { key: 'stale', header: 'Stale' },
+        { key: 'consecutive_failures', header: 'Consecutive failures' },
+        { key: 'failures_24h', header: 'Failures 24h' },
+        { key: 'latest_success_age_minutes', header: 'Minutes since last success' },
+      ]);
+
+      const sourceTrendEl = document.getElementById('source-degradation-trends');
+      if (sourceTrendEl) {
+        const trend = summary?.source_degradation ?? {};
+        sourceTrendEl.innerHTML = [
+          '<p><strong>Stale sources (24h):</strong> ' + String(trend.stale_source_count_24h ?? 0) + ' (Δ ' + String(trend.stale_source_count_delta_24h ?? 0) + ' vs prior 24h)</p>',
+          '<p><strong>Source failures (24h):</strong> ' + String(trend.source_failures_24h ?? 0) + ' (Δ ' + String(trend.source_failures_delta_24h ?? 0) + ' vs prior 24h)</p>'
+        ].join('');
+      }
 
       renderTable('failures-table', failures, [
         { key: 'started_at', header: 'Started', render: (v) => formatTimestamp(v) },

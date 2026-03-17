@@ -53,3 +53,14 @@
 
 ## Next
 - Run another fixture-backed validation sweep to decide between operational guardrail work and stop-and-stabilize before further map edge-case hardening.
+
+
+## Completed: Operational guardrails + recurring source degradation pass
+- [x] Added source degradation trend indicators to ops summary (stale-source and source-failure 24h deltas).
+- [x] Added deterministic recurring failure/stale pattern detection per source.
+- [x] Added analyst-facing region trust cues for source freshness/coverage degradation impact.
+- [x] Updated project/session state docs so repository memory reflects this hardening pass.
+
+## Next
+- Add alert thresholds for consecutive-failure pattern escalation in scheduler notifications.
+- Expand fixture tests for mixed region-risk vs source-quality-degradation scenarios.
