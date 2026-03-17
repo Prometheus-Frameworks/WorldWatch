@@ -1,14 +1,14 @@
 # TASK_QUEUE
 
 ## Now
-- Run the new analyst UX validation checklist for each analyst-detail change.
-- Prioritize analyst polish items that improve first-scan interpretation speed and reduce stale/disagreement misreads.
-- Maintain deterministic fixture coverage for escalation posture and disagreement ordering.
+- Run analyst UX validation checklist for each detail/compare interaction change.
+- Keep Focus Mode first-scan stack concise and visible without regressing trust/posture cues.
+- Keep compare deterministic and quickly scannable (composite/state/sub-score/flag deltas).
 
 ## Next
-- Refine internal map ergonomics only where they accelerate region selection without displacing table/detail workflow.
-- Add small historical snapshot spot-check routine to release checklist (no replay system expansion).
-- Reconfirm posture banner/policy visibility after any dashboard layout changes.
+- Validate reset-layout affordance and persistence behavior across broader fixture scenarios.
+- Reconfirm posture banner/policy visibility after any future detail-layout adjustments.
+- Add any missing low-cost tests around region-switch interaction defaults.
 
 ## Later
 - Add additional operational guardrails/observability around recurring source degradation patterns.
@@ -19,8 +19,9 @@
 - Non-deterministic or opaque scoring narratives.
 - Features that imply military/targeting posture or non-civilian use.
 
-## Completed: PR27 Analyst ergonomics pass
-- [x] Focus mode default with collapsible deep-detail sections and preserved trust cues.
-- [x] Pin-this-section affordances with localStorage persistence.
-- [x] Deterministic latest-vs-prior snapshot compare in region detail (with optional 24h-ago mode).
-- [x] Test coverage updates for compare endpoint and analyst detail render affordances.
+## Completed: PR28 Analyst interaction polish + defaults
+- [x] Focus Mode first-scan stack tightened and kept as default analyst path.
+- [x] Snapshot compare readability improved with deterministic highlights + expanded state-change rows.
+- [x] Pinned section empty-state and duplication behavior improved while preserving localStorage persistence.
+- [x] Added reset-analyst-layout control for clearing persisted detail/compare/pin preferences.
+- [x] Updated analyst UX validation documentation for “what changed?” + “should I escalate?” speed checks.

@@ -56,7 +56,27 @@ test('analyst console includes focus mode, pinning, and snapshot compare control
   assert.ok(html.includes('worldwatch.analyst.detail_mode'));
   assert.ok(html.includes('worldwatch.analyst.pins'));
   assert.ok(html.includes('id="compare-select"'));
-  assert.ok(html.includes('Scan order: Escalation'));
+  assert.ok(html.includes('Scan order: Escalation posture'));
   assert.ok(html.includes('id="compare-summary-table"'));
+  assert.ok(html.includes('id="compare-highlights"'));
+  assert.ok(html.includes('Reset analyst layout'));
+  assert.ok(html.includes('id="pinned-sections-empty"'));
+  assert.ok(html.includes('section-pinned-hidden'));
   assert.ok(html.includes('data-section-key="source_disagreement"'));
+});
+
+test('analyst client script persists compare mode and renders compare/pin readability affordances', () => {
+  const html = renderAnalystConsole({
+    posture: 'internal',
+    bannerText: 'Internal-only workspace',
+    subtitleText: 'For internal analyst and operations workflows only.',
+  });
+
+  assert.ok(html.includes('worldwatch.analyst.compare_mode'));
+  assert.ok(html.includes('persistCompareMode'));
+  assert.ok(html.includes('No sections pinned yet. Pin frequently-used sections to keep them at the top.'));
+  assert.ok(html.includes('Snapshot compare summary'));
+  assert.ok(html.includes('Composite Δ'));
+  assert.ok(html.includes('Disagreement flag'));
+  assert.ok(html.includes('Divergence cue'));
 });

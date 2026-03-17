@@ -23,6 +23,8 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
     .feed-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
     .feed-card { border: 1px solid #3a465d; border-radius: 6px; padding: 10px; background: #111722; }
     .controls { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+    .controls button { background: #1f2f45; color: #dcecff; border: 1px solid #4d6d95; border-radius: 4px; padding: 4px 8px; cursor: pointer; }
+    .controls button:hover { background: #273a53; }
     .controls-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
     .summary-grid { display: grid; grid-template-columns: repeat(5, minmax(160px, 1fr)); gap: 8px; margin-bottom: 12px; }
     .summary-card { border: 1px solid #33445c; border-radius: 6px; padding: 8px; background: #141c28; }
@@ -70,12 +72,23 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
     .state-card strong { display: inline-block; min-width: 88px; }
     .detail-priority-band { border: 1px solid #4d6d95; border-radius: 6px; padding: 10px; margin-bottom: 12px; background: #132033; }
     .detail-priority-band h3 { margin-bottom: 6px; }
-    .scan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
-    .scan-card { border: 1px solid #3b4f6b; border-radius: 6px; padding: 8px; background: #101a2a; }
+    .scan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+    .scan-card { border: 1px solid #3b4f6b; border-radius: 6px; padding: 7px; background: #101a2a; min-height: 92px; }
     .scan-card p { margin: 0; font-size: 12px; }
     .scan-label { color: #9eb7d8; text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; }
     .scan-value { font-size: 16px; font-weight: 700; margin-top: 4px; }
     .scan-note { color: #b8c9dd; margin-top: 4px; }
+    .pinned-empty { color: #9ca8b7; font-size: 12px; margin: 4px 0 0; }
+    .pinned-card { border: 1px solid #3a465d; border-radius: 6px; padding: 8px; background: #101723; margin-top: 8px; }
+    .pinned-card h4 { margin: 0 0 6px; font-size: 12px; color: #b6ccec; text-transform: uppercase; letter-spacing: 0.03em; }
+    .section-pinned-hidden { display: none; }
+    .compare-highlights { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin-bottom: 8px; }
+    .compare-card { border: 1px solid #3a516e; border-radius: 6px; padding: 8px; background: #0f1928; }
+    .compare-card p { margin: 0; }
+    .compare-card .scan-label { display: block; margin-bottom: 4px; }
+    .compare-delta-up { color: #7edb9b; }
+    .compare-delta-down { color: #ff9b9b; }
+    .compare-delta-flat { color: #c3cfdd; }
     .detail-subtitle { margin: 0 0 8px; font-size: 12px; color: #8ea3bf; }
     .subscore-grid { display: grid; grid-template-columns: 1fr; gap: 7px; }
     .subscore-row { border: 1px solid #2f3b4d; border-radius: 6px; padding: 7px; background: #0f141d; }
@@ -187,11 +200,13 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
         <option value="previous">Latest vs Previous</option>
         <option value="24h-ago">Latest vs 24h-ago</option>
       </select>
+      <button id="reset-analyst-layout" type="button">Reset analyst layout</button>
     </div>
-    <p id="scan-order-hint" class="hint">Scan order: Escalation → States → Disagreement → Stale high-impact → (expand sections as needed)</p>
+    <p id="scan-order-hint" class="hint">Scan order: Escalation posture → Freshness/confidence/evidence → Divergence cue (if active) → Disagreement summary → Stale high-impact sources → Snapshot compare summary</p>
     <div id="detail-header" class="detail-header-card"></div>
     <section id="pinned-sections" class="detail-section" hidden>
       <h3>Pinned sections</h3>
+      <p id="pinned-sections-empty" class="pinned-empty"></p>
       <div id="pinned-sections-body"></div>
     </section>
     <section class="detail-priority-band" data-section-key="quick_scan">
@@ -213,6 +228,7 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
     </section>
     <section class="detail-section" data-section-key="compare">
       <h3>Snapshot compare</h3>
+      <div id="compare-highlights" class="compare-highlights"></div>
       <table id="compare-summary-table"></table>
       <table id="compare-subscores-table"></table>
       <table id="compare-factors-table"></table>
