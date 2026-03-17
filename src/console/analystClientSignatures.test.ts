@@ -53,3 +53,15 @@ test('summary and detail signatures stay stable for unchanged payloads', () => {
   assert.equal(getDetailSignature(detail), getDetailSignature(structuredClone(detail)));
   assert.ok(getDetailSignature(detail) !== getDetailSignature({ ...detail, latest_delta: { delta_24h: 4, delta_7d: 6 } }));
 });
+
+
+test('map signature changes when tooltip-relevant triage fields change', () => {
+  const baseRows = [
+    { slug: 'a', status_band: 'high', composite_score: 88, delta_24h: 1, confidence_band: 'medium', freshness_state: 'fresh', evidence_state: 'strong' },
+  ];
+  const changedRows = [
+    { ...baseRows[0], confidence_band: 'low' },
+  ];
+
+  assert.ok(getMapSignature(baseRows, 'a', null) !== getMapSignature(changedRows, 'a', null));
+});

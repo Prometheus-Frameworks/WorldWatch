@@ -38,8 +38,8 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
     table { width: 100%; border-collapse: collapse; }
     th, td { border: 1px solid #2f3b4d; padding: 6px; text-align: left; font-size: 12px; }
     th { background: #0f141d; }
-    .active-row { background: #1e3148; }
-    .hover-row { background: #1a2738; }
+    .active-row { background: #243a56; box-shadow: inset 3px 0 0 #8ad0ff; }
+    .hover-row { background: #1b2b3f; }
     .pill { border: 1px solid #4d6d95; border-radius: 999px; padding: 1px 7px; font-size: 11px; }
     .region-link { background: none; color: #84c7ff; border: none; cursor: pointer; padding: 0; font: inherit; text-decoration: underline; }
     ul { margin: 8px 0; padding-left: 20px; }
@@ -49,13 +49,25 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
     .map-card { margin-bottom: 0; }
     .map-shell { border: 1px solid #2f3b4d; border-radius: 6px; background: #0f141d; overflow: hidden; }
     #analyst-map { width: 100%; height: 420px; display: block; }
-    .map-legend { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; color: #9ca8b7; }
+    .map-legend { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 11px; color: #9ca8b7; }
     .map-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
     .map-hidden { display: none; }
-    .map-region.active { stroke: #ffffff; stroke-width: 3.8; fill-opacity: 1; filter: drop-shadow(0 0 3px rgba(255,255,255,0.35)); }
-    .map-region.hover { stroke: #9ad1ff; stroke-width: 2.4; fill-opacity: 0.9; }
-    .map-region.dimmed { fill-opacity: 0.45; }
-    .map-tooltip { position: fixed; pointer-events: none; background: #0f141d; border: 1px solid #4d6d95; color: #dcecff; border-radius: 6px; padding: 6px 8px; font-size: 12px; z-index: 20; max-width: 260px; box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
+    .map-region.active { stroke: #ffffff; stroke-width: 4.6; fill-opacity: 1; filter: drop-shadow(0 0 6px rgba(138,208,255,0.65)); }
+    .map-region.hover { stroke: #9ad1ff; stroke-width: 2.6; fill-opacity: 0.92; }
+    .map-region.dimmed { fill-opacity: 0.4; }
+    .map-tooltip { position: fixed; pointer-events: none; background: #0f141d; border: 1px solid #4d6d95; color: #dcecff; border-radius: 6px; padding: 8px 10px; font-size: 12px; z-index: 20; max-width: 280px; box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
+    .map-tooltip p { margin: 0; }
+    .map-tooltip-title { font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+    .map-tooltip-grid { display: grid; grid-template-columns: auto auto; gap: 3px 8px; margin-bottom: 6px; }
+    .map-tooltip-label { color: #9eb7d8; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+    .map-tooltip-value { font-size: 12px; }
+    .map-tooltip-cue { color: #b8c9dd; font-size: 11px; margin-top: 4px; }
+    .map-tooltip-hint { color: #9ca8b7; font-size: 11px; margin-top: 6px; }
+    .map-tooltip-status-critical { color: #f4a6ff; }
+    .map-tooltip-status-high { color: #ff9b9b; }
+    .map-tooltip-status-elevated { color: #ffd08f; }
+    .map-tooltip-status-low { color: #9de8a8; }
+    .map-tooltip-status-unknown { color: #c3cfdd; }
     .posture-banner { border: 1px solid #4d6d95; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; background: #142033; }
     .posture-banner p { margin: 2px 0; }
     .posture-title { font-size: 12px; color: #9eb7d8; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -187,7 +199,7 @@ export function renderAnalystConsole(posture: DeploymentPostureConfig): string {
             <svg id="analyst-map" viewBox="0 0 960 480" role="img" aria-label="Internal region geometry map"></svg>
           </div>
           <div class="map-legend" id="map-legend"></div>
-          <p id="map-interaction-copy" class="map-guidance">Hover for trust + momentum cues. Click to lock active region, then continue triage in table/detail.</p>
+          <p id="map-interaction-copy" class="map-guidance">Use map for quick region pre-checks only: hover to preview trust + momentum, click to lock region, continue investigation in table/detail.</p>
           <div id="map-tooltip" class="map-tooltip" hidden></div>
         </section>
       </div>

@@ -54,3 +54,9 @@
 - Compare readability further tightened with compact deterministic strips for state and trust-cue changes before tabular inspection.
 - Pinned sections now communicate intent better (clearer empty state and controls) while reducing confusion from source-location duplication via explicit de-emphasis cues.
 - Internal map interactions were refined for faster region selection (click-to-lock, clearer active vs hover) while remaining subordinate to table/detail analyst flow.
+
+
+## Sprint note: internal map ergonomics hardening pass (PR31)
+- Internal map was tightened as a region-selection accelerator (clearer active lock state, hover distinction, compact triage tooltip).
+- Map/table/detail coordination remains deterministic and now better reflects shared active/hover semantics without changing score math.
+- Scope intentionally avoided basemap/public polish; table/detail remains the primary analyst workflow with map as supporting context.

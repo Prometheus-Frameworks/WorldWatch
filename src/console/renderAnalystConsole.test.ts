@@ -26,7 +26,7 @@ test('analyst console includes map-table coordination and triage readability aff
   });
 
   assert.ok(html.includes('.map-region.hover'));
-  assert.ok(html.includes('Hover for trust + momentum cues. Click to lock active region, then continue triage in table/detail.'));
+  assert.ok(html.includes('Use map for quick region pre-checks only: hover to preview trust + momentum, click to lock region, continue investigation in table/detail.'));
   assert.ok(html.includes('id="triage-notes"'));
   assert.ok(html.includes('Array.isArray(detail.triage_notes) ? detail.triage_notes : []'));
   assert.ok(html.includes('Largest bars indicate strongest risk pressure.'));
@@ -92,5 +92,7 @@ test('analyst client script persists compare mode and renders compare/pin readab
   assert.ok(html.includes('Narrative-leading divergence'));
   assert.ok(html.includes('Trust-cue change strip'));
   assert.ok(html.includes('State changes'));
-  assert.ok(html.includes('click to lock active region'));
+  assert.ok(html.includes('Click to lock region and continue in table/detail.'));
+  assert.ok(html.includes('.map-tooltip-grid'));
+  assert.ok(html.includes('map-tooltip-status-critical'));
 });

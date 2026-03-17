@@ -33,3 +33,10 @@
 - Added compact compare scan strips above compare tables so analysts can read state transitions and trust-cue changes in one pass while keeping deterministic table detail below.
 - Tightened pin affordances and messaging (clearer pin/unpin language, clearer empty state, and explicit de-emphasis note for original sections) while preserving `worldwatch.analyst.pins` persistence.
 - Improved map/table/detail coordination with explicit map click-to-lock behavior and clearer active/hover visual distinction without elevating map over table/detail workflow.
+
+
+## Session update (PR31)
+- Tightened internal map ergonomics for faster triage selection without changing scoring semantics: stronger active-region treatment, clearer hover/active separation, and simpler legend copy.
+- Reworked map tooltip into compact deterministic triage structure (region, composite, status, confidence, Δ24h, freshness/evidence cue) so analysts can decide click-worthiness quickly.
+- Preserved table/detail primacy and existing Focus Mode, compare, pin persistence, and posture/policy visibility behavior while improving map-origin selection sync.
+- Remaining weak spot: spatial workflow still relies on compact SVG geometry and can feel dense under heavy filter churn; likely next decision is operational guardrails vs stop-and-stabilize after another validation sweep.

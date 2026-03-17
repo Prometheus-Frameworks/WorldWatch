@@ -25,7 +25,19 @@ export function getMapSignature(
   hoveredRegionSlug: string | null,
 ): string {
   return (
-    rows.map((row) => `${row.slug}:${row.status_band}`).join(';') +
+    rows
+      .map((row) =>
+        [
+          row.slug,
+          row.status_band,
+          row.composite_score,
+          row.confidence_band,
+          row.freshness_state,
+          row.evidence_state,
+          row.delta_24h,
+        ].join(':'),
+      )
+      .join(';') +
     `|active:${activeRegionSlug ?? 'none'}|hover:${hoveredRegionSlug ?? 'none'}`
   );
 }
