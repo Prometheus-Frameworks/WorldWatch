@@ -240,7 +240,7 @@ export function getAnalystConsoleClientScript(): string {
       return visibleSlugs[0] ?? null;
     }
     function getMapTooltipText(row) {
-      return row.name + ' · ' + row.status_band + ' · score ' + formatNum(Number(row.composite_score), 1) + ' · Δ24h ' + formatNum(Number(row.delta_24h), 1) + ' · Δ7d ' + formatNum(Number(row.delta_7d), 1);
+      return row.name + ' · ' + row.status_band + ' · score ' + formatNum(Number(row.composite_score), 1) + ' · confidence ' + String(row.confidence_band ?? '-') + ' · freshness ' + String(row.freshness_state ?? '-') + ' · Δ24h ' + formatNum(Number(row.delta_24h), 1);
     }
     function computeSubscoreWidth(value) {
       const numeric = Number(value);
@@ -323,7 +323,7 @@ export function getAnalystConsoleClientScript(): string {
     function persistDetailMode() { localStorage.setItem('worldwatch.analyst.detail_mode', detailMode); }
     function persistPins() { localStorage.setItem('worldwatch.analyst.pins', JSON.stringify([...detailPins].sort())); }
     function togglePin(sectionKey) { if (detailPins.has(sectionKey)) detailPins.delete(sectionKey); else detailPins.add(sectionKey); persistPins(); applyDetailMode(); }
-    function pinButton(sectionKey) { return '<button class="region-link pin-control" data-pin-section="' + sectionKey + '">' + (detailPins.has(sectionKey) ? 'Unpin section' : 'Pin section') + '</button>'; }
+    function pinButton(sectionKey) { return '<button class="region-link pin-control" data-pin-section="' + sectionKey + '" aria-label="' + (detailPins.has(sectionKey) ? 'Unpin section' : 'Pin section') + '">' + (detailPins.has(sectionKey) ? '📌 Unpin section' : '📌 Pin section') + '</button>'; }
     function buildPinnedSectionCard(section, key) {
       const heading = section.querySelector('h3, summary');
       const headingTextNode = heading ? [...heading.childNodes].find((node) => node.nodeType === Node.TEXT_NODE) : null;
@@ -349,16 +349,25 @@ export function getAnalystConsoleClientScript(): string {
       for (const sectionNode of document.querySelectorAll('#region-detail [data-section-key]')) {
         if (!(sectionNode instanceof HTMLElement)) continue;
         const key = sectionNode.getAttribute('data-section-key');
-        sectionNode.classList.toggle('section-pinned-hidden', Boolean(key) && detailPins.has(key));
+        const isPinned = Boolean(key) && detailPins.has(key);
+        sectionNode.classList.toggle('section-pinned-hidden', isPinned);
+        if (isPinned) {
+          if (!sectionNode.querySelector('[data-pinned-note]')) {
+            const heading = sectionNode.querySelector('h3, summary');
+            if (heading instanceof HTMLElement) heading.insertAdjacentHTML('afterend', '<p class="section-pinned-note" data-pinned-note>This section is pinned above for quick compare and triage.</p>');
+          }
+        } else {
+          sectionNode.querySelector('[data-pinned-note]')?.remove();
+        }
       }
       if (pinnedArea instanceof HTMLElement && pinnedBody instanceof HTMLElement && pinnedEmpty instanceof HTMLElement) {
         const pinnedKeys = [...detailPins].sort();
         pinnedArea.hidden = false;
         if (pinnedKeys.length === 0) {
           pinnedBody.innerHTML = '';
-          pinnedEmpty.textContent = 'No sections pinned yet. Pin frequently-used sections to keep them at the top.';
+          pinnedEmpty.innerHTML = '<strong>No pinned sections yet.</strong> Pin compare, disagreement, or stale-evidence sections to keep your scan order stable while switching regions.';
         } else {
-          pinnedEmpty.textContent = 'Pinned sections stay available across regions.';
+          pinnedEmpty.textContent = 'Pinned sections stay available across regions and refreshes.';
           pinnedBody.innerHTML = pinnedKeys.map((key) => {
             const section = document.querySelector('#region-detail [data-section-key="' + key + '"]');
             return section instanceof HTMLElement ? buildPinnedSectionCard(section, key) : '';
@@ -444,13 +453,12 @@ export function getAnalystConsoleClientScript(): string {
       if (compare) {
         if (compareHighlights instanceof HTMLElement) {
           compareHighlights.innerHTML = [
+            ['What changed?', Number(compare.deltas?.composite_score) === 0 && compare.left?.status_band === compare.right?.status_band && compare.left?.confidence_band === compare.right?.confidence_band && compare.left?.freshness_state === compare.right?.freshness_state && compare.left?.evidence_state === compare.right?.evidence_state ? 'No material state change' : 'State or score shift detected'],
+            ['Trust direction', Number(compare.deltas?.composite_score) > 0 ? 'Degraded (+risk)' : (Number(compare.deltas?.composite_score) < 0 ? 'Improved (-risk)' : 'Flat')],
             ['Composite Δ', formatDeltaLabel(compare.deltas?.composite_score, 1)],
-            ['Status changed', compare.left?.status_band === compare.right?.status_band ? 'No' : 'Yes'],
-            ['Confidence changed', compare.left?.confidence_band === compare.right?.confidence_band ? 'No' : 'Yes'],
-            ['Freshness changed', compare.left?.freshness_state === compare.right?.freshness_state ? 'No' : 'Yes'],
-            ['Evidence changed', compare.left?.evidence_state === compare.right?.evidence_state ? 'No' : 'Yes'],
-            ['Disagreement flag', compare.flags?.disagreement_changed ? 'Changed' : 'Unchanged'],
-            ['Divergence cue', compare.flags?.divergence_changed ? 'State changed' : 'Unchanged'],
+            ['Disagreement', compare.flags?.disagreement_changed ? 'Appeared/disappeared' : 'No state change'],
+            ['Narrative-leading divergence', compare.flags?.divergence_changed ? 'Activated/deactivated' : 'No state change'],
+            ['Compared against', compare.compare_mode === '24h-ago' ? '24h-ago snapshot' : 'Previous snapshot'],
           ].map(([label, value]) => '<article class="compare-card"><span class="scan-label">' + label + '</span><p class="scan-value">' + value + '</p></article>').join('');
         }
         renderHistoryTable('compare-summary-table', [
@@ -481,7 +489,7 @@ export function getAnalystConsoleClientScript(): string {
     function showMapTooltip(text, x, y) { const tooltip = document.getElementById('map-tooltip'); if (!(tooltip instanceof HTMLElement)) return; tooltip.textContent = text; tooltip.hidden = false; tooltip.style.left = (x + 12) + 'px'; tooltip.style.top = (y + 12) + 'px'; }
     function hideMapTooltip() { const tooltip = document.getElementById('map-tooltip'); if (!(tooltip instanceof HTMLElement)) return; tooltip.hidden = true; }
     function setHoveredRegion(slug) { if (hoveredRegionSlug === slug) return; hoveredRegionSlug = slug; renderRegionsTable(regions); renderMap(); }
-    function syncRegionViews() { const visible = getFilteredSortedRegions(); activeRegionSlug = deriveNextActiveRegionSlug(visible.map((row) => row.slug), activeRegionSlug); renderRegionsTable(regions); renderMap(); }
+    function syncRegionViews() { const visible = getFilteredSortedRegions(); const previousActive = activeRegionSlug; activeRegionSlug = deriveNextActiveRegionSlug(visible.map((row) => row.slug), activeRegionSlug); if (previousActive !== activeRegionSlug) hoveredRegionSlug = null; renderRegionsTable(regions); renderMap(); }
     async function syncRegionViewsAndMaybeLoadDetail(forceRefresh) { const previous = activeRegionSlug; setHoveredRegion(null); syncRegionViews(); if (activeRegionSlug && (forceRefresh || activeRegionSlug !== previous)) await loadRegion(activeRegionSlug, true); }
     function applyLayout() { const mode = getSelectValue('analyst-layout'); const primaryPanel = document.getElementById('primary-panel-layout'); const mapCard = document.getElementById('analyst-map-card'); if (!(primaryPanel instanceof HTMLElement) || !(mapCard instanceof HTMLElement)) return; if (mode === 'split') { primaryPanel.classList.add('split'); mapCard.classList.remove('map-hidden'); } else { primaryPanel.classList.remove('split'); mapCard.classList.add('map-hidden'); } }
 
@@ -515,7 +523,7 @@ export function getAnalystConsoleClientScript(): string {
     document.body.addEventListener('mouseover', (event) => { const target = event.target; if (!(target instanceof HTMLElement)) return; const regionNode = target.closest('[data-region]'); if (!(regionNode instanceof HTMLElement)) return; const slug = regionNode.getAttribute('data-region'); if (!slug || slug === activeRegionSlug) return; setHoveredRegion(slug); });
     document.body.addEventListener('mouseout', (event) => { const target = event.target; if (!(target instanceof HTMLElement)) return; const regionNode = target.closest('[data-region]'); if (!(regionNode instanceof HTMLElement)) return; const related = event.relatedTarget; if (related instanceof HTMLElement && related.closest('[data-region]') === regionNode) return; if (hoveredRegionSlug && hoveredRegionSlug !== activeRegionSlug) setHoveredRegion(null); });
     document.body.addEventListener('click', (event) => { const target = event.target; if (!(target instanceof HTMLElement)) return; const pin = target.closest('[data-pin-section]'); if (pin instanceof HTMLElement) { event.preventDefault(); const key = pin.getAttribute('data-pin-section'); if (key) { togglePin(key); lastDetailSignature = ''; void loadRegion(activeRegionSlug, true); } return; } const regionNode = target.closest('[data-region]'); if (!(regionNode instanceof HTMLElement)) return; const slug = regionNode.getAttribute('data-region'); if (!slug) return; event.preventDefault(); setHoveredRegion(null); void loadRegion(slug, true); });
-    document.getElementById('analyst-map').addEventListener('mousemove', (event) => { const target = event.target; if (!(target instanceof SVGElement)) return; const path = target.closest('.map-region'); if (!(path instanceof SVGElement)) { hideMapTooltip(); return; } const slug = path.getAttribute('data-region'); if (slug && slug !== activeRegionSlug) setHoveredRegion(slug); const tooltip = path.getAttribute('data-tooltip'); if (!tooltip) { hideMapTooltip(); return; } showMapTooltip(tooltip, event.clientX, event.clientY); });
+    document.getElementById('analyst-map').addEventListener('mousemove', (event) => { const target = event.target; if (!(target instanceof SVGElement)) return; const path = target.closest('.map-region'); if (!(path instanceof SVGElement)) { hideMapTooltip(); return; } const slug = path.getAttribute('data-region'); if (slug && slug !== activeRegionSlug) setHoveredRegion(slug); const tooltip = path.getAttribute('data-tooltip'); if (!tooltip) { hideMapTooltip(); return; } showMapTooltip(tooltip + ' · click to inspect', event.clientX, event.clientY); });
     document.getElementById('analyst-map').addEventListener('mouseleave', () => { hideMapTooltip(); setHoveredRegion(null); });
 
     applyLayout();

@@ -20,3 +20,11 @@
 - Added compare-mode local persistence (`worldwatch.analyst.compare_mode`) and a scoped “Reset analyst layout” control that clears persisted detail mode, compare mode, and pins.
 - Added compare highlight cards and expanded deterministic compare summary rows for first-pass readability.
 - Tightened pinned section rendering to avoid duplicated section confusion.
+
+## Session update (PR29)
+- Compare section regrouped for faster first-pass scan with explicit answer cards for: what changed, trust direction, disagreement change, and narrative-leading divergence activation state.
+- Snapshot compare tables are now grouped by purpose (score/state, trust cues, sub-score deltas, factor changes) to reduce wall-of-table friction while preserving deterministic inspectability.
+- Pin UX tightened with clearer empty-state guidance, more explicit pin controls, and de-emphasized original section shells when pinned to avoid awkward duplication.
+- Internal map ergonomics improved via clearer active emphasis and richer tooltip context to accelerate region selection/triage without shifting away from table/detail-first workflow.
+- Remaining friction: high pin counts can still add visual density; next likely priority is analyst polish with small operational guardrails around default/persistence edge cases.
+

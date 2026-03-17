@@ -26,7 +26,7 @@ test('analyst console includes map-table coordination and triage readability aff
   });
 
   assert.ok(html.includes('.map-region.hover'));
-  assert.ok(html.includes('Hover for a quick read. Click a region to lock table + detail selection.'));
+  assert.ok(html.includes('Hover for trust + momentum cues. Click to lock selection, then continue triage in table/detail.'));
   assert.ok(html.includes('id="triage-notes"'));
   assert.ok(html.includes('Array.isArray(detail.triage_notes) ? detail.triage_notes : []'));
   assert.ok(html.includes('Largest bars indicate strongest risk pressure.'));
@@ -58,10 +58,13 @@ test('analyst console includes focus mode, pinning, and snapshot compare control
   assert.ok(html.includes('id="compare-select"'));
   assert.ok(html.includes('Scan order: Escalation posture'));
   assert.ok(html.includes('id="compare-summary-table"'));
+  assert.ok(html.includes('Score + state changes'));
+  assert.ok(html.includes('Trust cue changes'));
   assert.ok(html.includes('id="compare-highlights"'));
   assert.ok(html.includes('Reset analyst layout'));
   assert.ok(html.includes('id="pinned-sections-empty"'));
   assert.ok(html.includes('section-pinned-hidden'));
+  assert.ok(html.includes('section-pinned-note'));
   assert.ok(html.includes('data-section-key="source_disagreement"'));
 });
 
@@ -74,9 +77,11 @@ test('analyst client script persists compare mode and renders compare/pin readab
 
   assert.ok(html.includes('worldwatch.analyst.compare_mode'));
   assert.ok(html.includes('persistCompareMode'));
-  assert.ok(html.includes('No sections pinned yet. Pin frequently-used sections to keep them at the top.'));
+  assert.ok(html.includes('No pinned sections yet.'));
+  assert.ok(html.includes('scan order stable while switching regions'));
   assert.ok(html.includes('Snapshot compare summary'));
+  assert.ok(html.includes('What changed?'));
+  assert.ok(html.includes('Trust direction'));
   assert.ok(html.includes('Composite Δ'));
-  assert.ok(html.includes('Disagreement flag'));
-  assert.ok(html.includes('Divergence cue'));
+  assert.ok(html.includes('Narrative-leading divergence'));
 });
