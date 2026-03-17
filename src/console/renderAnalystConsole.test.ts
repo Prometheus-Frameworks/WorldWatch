@@ -31,14 +31,15 @@ test('analyst console includes map-table coordination and triage readability aff
   assert.ok(html.includes('Array.isArray(detail.triage_notes) ? detail.triage_notes : []'));
   assert.ok(html.includes('Largest bars indicate strongest risk pressure.'));
   assert.ok(html.includes('id="explainability-scan-cards"'));
-  assert.ok(html.includes('Prioritize mixed-signal and stale high-risk checks before deep factor review.'));
+  assert.ok(html.includes('Escalation posture'));
+  assert.ok(html.includes('Read escalation posture first, then validate stale high-impact evidence and disagreement before deep factor review.'));
   assert.ok(html.includes('id="explainability-factors-table"'));
   assert.ok(html.includes('id="explainability-state-cards"'));
-  assert.ok(html.includes('Trust cue:'));
+  assert.ok(html.includes('Narrative-vs-physical cue:'));
   assert.ok(html.includes('Narrative-leading signal'));
   assert.ok(html.includes('id="freshest-sources-table"'));
   assert.ok(html.includes('id="source-disagreement-table"'));
-  assert.ok(html.includes('Scan by domain, disagreement type, source direction, recency, and reliability.'));
+  assert.ok(html.includes('Ordered for first-scan trust: reliability, direction, recency, then disagreement type.'));
   assert.ok(html.includes('id="source-contributions-table"'));
   assert.ok(html.includes("source-contributions-table"));
 });

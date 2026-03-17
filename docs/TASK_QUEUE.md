@@ -1,17 +1,16 @@
 # TASK_QUEUE
 
 ## Now
-- Validate narrative-vs-physical divergence cue behavior against historical disagreement-heavy snapshots.
-- Add targeted analyst-quality checks around trust-cue clarity and escalation discipline.
-- Maintain deterministic fixture coverage as new explainability edge cases emerge.
+- Run the new analyst UX validation checklist for each analyst-detail change.
+- Prioritize analyst polish items that improve first-scan interpretation speed and reduce stale/disagreement misreads.
+- Maintain deterministic fixture coverage for escalation posture and disagreement ordering.
 
 ## Next
-- Add lightweight UX validation checklist for analyst detail (speed to interpret, misread rate, escalation confidence).
-- Tune explainability block ordering only if analyst validation shows measurable confusion points.
+- Refine internal map ergonomics only where they accelerate region selection without displacing table/detail workflow.
+- Add small historical snapshot spot-check routine to release checklist (no replay system expansion).
 - Reconfirm posture banner/policy visibility after any dashboard layout changes.
 
 ## Later
-- Expand internal map ergonomics only where it improves table/detail triage.
 - Add additional operational guardrails/observability around recurring source degradation patterns.
 - Continue hardening docs as live repo-memory during each landed sprint.
 

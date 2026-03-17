@@ -57,6 +57,7 @@ test('deriveDetailExplainabilitySummary returns deterministic local-condition co
   const summary = deriveDetailExplainabilitySummary({
     freshness_state: 'aging',
     confidence_band: 'medium',
+    status_band: 'elevated',
     evidence_state: 'mixed',
     factors,
     explainability_groups: explainabilityGroups,
@@ -117,6 +118,7 @@ test('explainability summaries stay truthful for stale high-impact evidence and 
   const summary = deriveDetailExplainabilitySummary({
     freshness_state: 'aging',
     confidence_band: 'low',
+    status_band: 'high',
     evidence_state: 'mixed',
     factors,
     explainability_groups: groups,
@@ -135,6 +137,7 @@ test('domain odd-case: displacement signal with limited support remains incomple
   const summary = deriveDetailExplainabilitySummary({
     freshness_state: 'fresh',
     confidence_band: 'low',
+    status_band: 'elevated',
     evidence_state: 'incomplete',
     factors: scenario.factors,
     explainability_groups: groups,
@@ -142,4 +145,44 @@ test('domain odd-case: displacement signal with limited support remains incomple
 
   assert.equal(groups.top_contributing_factors[0]?.domain, 'displacementStress');
   assert.equal(summary.evidence_copy, 'Evidence is incomplete because only 1 contributing domain meets the high-impact threshold.');
+});
+
+
+test('deriveDetailExplainabilitySummary emits deterministic escalation posture cues', () => {
+  const narrativeGroups = buildDetailExplainabilityGroups(narrativeLedSpikeFlatPhysicalScenario().factors);
+  const narrative = deriveDetailExplainabilitySummary({
+    freshness_state: 'fresh',
+    confidence_band: 'high',
+    status_band: 'critical',
+    evidence_state: 'mixed',
+    factors: narrativeLedSpikeFlatPhysicalScenario().factors,
+    explainability_groups: narrativeGroups,
+  });
+  assert.equal(narrative.escalation_code, 'narrative-leading-caution');
+
+  const careful = deriveDetailExplainabilitySummary({
+    freshness_state: 'aging',
+    confidence_band: 'low',
+    status_band: 'high',
+    evidence_state: 'mixed',
+    factors: mixedMultiDomainDisagreementScenario().factors,
+    explainability_groups: buildDetailExplainabilityGroups(mixedMultiDomainDisagreementScenario().factors),
+  });
+  assert.equal(careful.escalation_code, 'high-severity-low-confidence');
+
+  const strong = deriveDetailExplainabilitySummary({
+    freshness_state: 'fresh',
+    confidence_band: 'high',
+    status_band: 'critical',
+    evidence_state: 'confirmed',
+    factors: [
+      { signalType: 'conflict.fatalities', source: 'acled', domain: 'conflictPressure', normalizedValue: 88, recencyMinutes: 50, sourceReliability: 0.91, movement: 'up' },
+      { signalType: 'chokepoint.delay_hours', source: 'imf-portwatch', domain: 'chokepointStress', normalizedValue: 83, recencyMinutes: 55, sourceReliability: 0.86, movement: 'up' },
+    ],
+    explainability_groups: buildDetailExplainabilityGroups([
+      { signalType: 'conflict.fatalities', source: 'acled', domain: 'conflictPressure', normalizedValue: 88, recencyMinutes: 50, sourceReliability: 0.91, movement: 'up' },
+      { signalType: 'chokepoint.delay_hours', source: 'imf-portwatch', domain: 'chokepointStress', normalizedValue: 83, recencyMinutes: 55, sourceReliability: 0.86, movement: 'up' },
+    ]),
+  });
+  assert.equal(strong.escalation_code, 'high-severity-high-confidence');
 });

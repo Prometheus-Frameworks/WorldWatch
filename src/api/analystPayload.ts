@@ -37,6 +37,9 @@ export interface DetailExplainabilitySummary {
   confidence_copy: string;
   evidence_state: string;
   evidence_copy: string;
+  escalation_code: 'high-severity-low-confidence' | 'high-severity-high-confidence' | 'narrative-leading-caution' | 'monitor';
+  escalation_label: string;
+  escalation_copy: string;
 }
 
 interface DomainSignalState {
@@ -261,7 +264,7 @@ export function buildDetailExplainabilityGroups(factors: unknown): DetailExplain
 }
 
 export function deriveDetailExplainabilitySummary(
-  input: Pick<TriageInput, 'freshness_state' | 'confidence_band'> & {
+  input: Pick<TriageInput, 'freshness_state' | 'confidence_band' | 'status_band'> & {
     evidence_state: string;
     factors?: unknown;
     explainability_groups?: DetailExplainabilityGroups;
@@ -314,6 +317,33 @@ export function deriveDetailExplainabilitySummary(
     unknown: 'Evidence is unknown: no usable indicators are currently available.',
   };
 
+  const hasHighSeverity = input.status_band === 'high' || input.status_band === 'critical';
+  const narrativeLeading = input.explainability_groups?.narrative_physical_divergence.is_active === true;
+
+  const escalationCue = narrativeLeading
+    ? {
+      escalation_code: 'narrative-leading-caution' as const,
+      escalation_label: 'Narrative-leading without physical confirmation',
+      escalation_copy: 'Treat as caution: narrative intensity is leading while physical/logistical domains are flat or incomplete.',
+    }
+    : hasHighSeverity && input.confidence_band === 'low'
+      ? {
+        escalation_code: 'high-severity-low-confidence' as const,
+        escalation_label: 'High severity, low confidence',
+        escalation_copy: 'Investigate carefully before escalation. Validate disagreement and stale-source context first.',
+      }
+      : hasHighSeverity && input.confidence_band === 'high'
+        ? {
+          escalation_code: 'high-severity-high-confidence' as const,
+          escalation_label: 'High severity, high confidence',
+          escalation_copy: 'Strong attention signal. Prioritize this region for immediate analyst follow-up.',
+        }
+        : {
+          escalation_code: 'monitor' as const,
+          escalation_label: 'Routine monitoring posture',
+          escalation_copy: 'No special escalation posture is active. Continue normal monitoring cadence.',
+        };
+
   return {
     freshness_state: input.freshness_state,
     freshness_copy: freshnessCopyByState[input.freshness_state] ?? 'Freshness state is unavailable in the current payload.',
@@ -321,6 +351,9 @@ export function deriveDetailExplainabilitySummary(
     confidence_copy: confidenceCopyByBand[input.confidence_band] ?? 'Confidence band is unavailable in the current payload.',
     evidence_state: input.evidence_state,
     evidence_copy: evidenceCopyByState[input.evidence_state] ?? 'Evidence state is unavailable in the current payload.',
+    escalation_code: escalationCue.escalation_code,
+    escalation_label: escalationCue.escalation_label,
+    escalation_copy: escalationCue.escalation_copy,
   };
 }
 

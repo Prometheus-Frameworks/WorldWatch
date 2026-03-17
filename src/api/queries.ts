@@ -319,6 +319,7 @@ export async function getRegionDetail(db: QueryableDb, slug: string, historyLimi
     explainability_summary: deriveDetailExplainabilitySummary({
       freshness_state: String(head.freshness_state),
       confidence_band: String(head.confidence_band),
+      status_band: String(head.status_band),
       evidence_state: String(head.evidence_state),
       factors: head.factors_json,
       explainability_groups: explainabilityGroups,
