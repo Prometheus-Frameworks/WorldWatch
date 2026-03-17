@@ -78,3 +78,14 @@ All scripts run with Node TypeScript strip-types mode.
 ## Civilian acceptable use
 
 You may not use WorldWatch to support military targeting, kinetic operations, covert surveillance, sanctions evasion, unlawful export activity, or access by prohibited persons or entities. WorldWatch is intended for lawful public-source monitoring and analysis only.
+
+## ARC quick start
+
+If ARC PR2 cohort outputs are present in `outputs/cohort_tables/`, build baseline summary tables with:
+
+- `python -m arc.cli build-baselines`
+
+Typical flow:
+
+1. Run `build-cohorts` (PR2 output step).
+2. Run `build-baselines` (PR3 summary step).
