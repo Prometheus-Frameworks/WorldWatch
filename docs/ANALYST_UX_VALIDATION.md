@@ -56,11 +56,12 @@ Run these after any detail-panel UX change touching compare, pins, or map sync:
   - Verify pin/unpin controls remain consistent in both original and pinned cards.
 
 - **Map usefulness for faster region selection**
+  - Verify active region treatment is unmistakable and remains stable after hover transitions.
   - Verify click-to-lock selection on map keeps active region sync with table/detail selection.
-  - Tooltip must expose trust + momentum context (status/score/confidence/freshness + delta).
-  - Active region should remain visually unambiguous relative to hovered/dimmed regions.
-  - Map selection and table/detail selection should stay in sync when filtering/sorting or switching regions.
+  - Confirm table-origin region switches immediately update map active state.
+  - Tooltip should answer “is this worth clicking?” with compact deterministic fields only (region, composite score, status band, confidence band, Δ24h, freshness/evidence cue).
+  - Confirm tooltip remains compact and does not duplicate detail-panel depth.
 
-- **Focus Mode speed check**
-  - Reconfirm Focus Mode still supports a <60 second trust read for at least 3 fixture scenarios.
+- **Focus Mode speed check (including map-origin selection)**
+  - Reconfirm Focus Mode still supports a <60 second trust read for at least 3 fixture scenarios when the selected region originated from map click.
 

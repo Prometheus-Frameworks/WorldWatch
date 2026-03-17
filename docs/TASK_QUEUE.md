@@ -43,3 +43,13 @@
 - [x] Improved pin UX clarity (empty/default guidance, stronger pin/unpin labels, explicit de-emphasized original-section behavior).
 - [x] Tightened map selection ergonomics (click-to-lock active region, clearer active/hover distinction, triage-oriented tooltip copy).
 - [x] Preserved Focus Mode default and existing compare/scoring determinism.
+
+
+## Completed: PR31 Internal map ergonomics hardening pass
+- [x] Strengthened active vs hover map states and tightened map/table/detail selection sync.
+- [x] Upgraded tooltip structure to compact deterministic triage cues (score, status, confidence, Δ24h, freshness/evidence).
+- [x] Simplified map legend/guidance copy to keep map useful but subordinate to table/detail workflow.
+- [x] Preserved Focus Mode, compare, pinning, posture/policy behavior while selection originates from map.
+
+## Next
+- Run another fixture-backed validation sweep to decide between operational guardrail work and stop-and-stabilize before further map edge-case hardening.

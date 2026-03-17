@@ -239,8 +239,24 @@ export function getAnalystConsoleClientScript(): string {
       if (currentActiveSlug && visibleSlugs.includes(currentActiveSlug)) return currentActiveSlug;
       return visibleSlugs[0] ?? null;
     }
+    function getStatusBandClass(statusBand) {
+      const normalized = String(statusBand ?? 'unknown').toLowerCase();
+      return ['critical', 'high', 'elevated', 'low'].includes(normalized) ? normalized : 'unknown';
+    }
     function getMapTooltipText(row) {
-      return row.name + ' · ' + row.status_band + ' · score ' + formatNum(Number(row.composite_score), 1) + ' · confidence ' + String(row.confidence_band ?? '-') + ' · freshness ' + String(row.freshness_state ?? '-') + ' · Δ24h ' + formatNum(Number(row.delta_24h), 1);
+      return row.name + ' · score ' + formatNum(Number(row.composite_score), 1) + ' · ' + String(row.status_band ?? '-') + ' · confidence ' + String(row.confidence_band ?? '-') + ' · Δ24h ' + formatNum(Number(row.delta_24h), 1);
+    }
+    function getMapTooltipHtml(row) {
+      const freshness = String(row.freshness_state ?? '-');
+      const evidence = String(row.evidence_state ?? '-');
+      return '<p class="map-tooltip-title">' + escapeHtml(row.name) + '</p>' +
+        '<div class="map-tooltip-grid">' +
+          '<span class="map-tooltip-label">Composite</span><span class="map-tooltip-value">' + escapeHtml(formatNum(Number(row.composite_score), 1)) + '</span>' +
+          '<span class="map-tooltip-label">Status</span><span class="map-tooltip-value map-tooltip-status-' + getStatusBandClass(row.status_band) + '">' + escapeHtml(String(row.status_band ?? '-')) + '</span>' +
+          '<span class="map-tooltip-label">Confidence</span><span class="map-tooltip-value">' + escapeHtml(String(row.confidence_band ?? '-')) + '</span>' +
+          '<span class="map-tooltip-label">Δ24h</span><span class="map-tooltip-value">' + escapeHtml(formatNum(Number(row.delta_24h), 1)) + '</span>' +
+        '</div>' +
+        '<p class="map-tooltip-cue">Trust cues: ' + escapeHtml(freshness) + ' freshness · ' + escapeHtml(evidence) + ' evidence.</p>';
     }
     function computeSubscoreWidth(value) {
       const numeric = Number(value);
@@ -506,9 +522,51 @@ export function getAnalystConsoleClientScript(): string {
     function getBoundsFromGeometry(geometryRows) { let minLon = Infinity; let minLat = Infinity; let maxLon = -Infinity; let maxLat = -Infinity; for (const row of geometryRows) { const coordinates = row?.geometry?.coordinates; if (!Array.isArray(coordinates)) continue; const stack = [...coordinates]; while (stack.length > 0) { const current = stack.pop(); if (!Array.isArray(current)) continue; if (current.length >= 2 && typeof current[0] === 'number' && typeof current[1] === 'number') { const [lon, lat] = current; minLon = Math.min(minLon, lon); minLat = Math.min(minLat, lat); maxLon = Math.max(maxLon, lon); maxLat = Math.max(maxLat, lat);} else { for (const item of current) stack.push(item); } } } if (!Number.isFinite(minLon) || !Number.isFinite(minLat) || !Number.isFinite(maxLon) || !Number.isFinite(maxLat)) return { minLon: -180, minLat: -90, maxLon: 180, maxLat: 90 }; return { minLon, minLat, maxLon, maxLat }; }
     function projectCoordinate(lon, lat, bounds) { const xRange = Math.max(0.1, bounds.maxLon - bounds.minLon); const yRange = Math.max(0.1, bounds.maxLat - bounds.minLat); const padding = 16; const width = 960 - padding * 2; const height = 480 - padding * 2; const x = ((lon - bounds.minLon) / xRange) * width + padding; const y = height - ((lat - bounds.minLat) / yRange) * height + padding; return [x, y]; }
     function geometryToPathD(geometry, bounds) { if (!geometry || !Array.isArray(geometry.coordinates)) return ''; const polygons = geometry.type === 'Polygon' ? [geometry.coordinates] : (geometry.type === 'MultiPolygon' ? geometry.coordinates : []); const segments = []; for (const polygon of polygons) { for (const ring of polygon) { if (!Array.isArray(ring) || ring.length === 0) continue; let segment = ''; for (let i = 0; i < ring.length; i += 1) { const point = ring[i]; if (!Array.isArray(point) || point.length < 2) continue; const [x, y] = projectCoordinate(point[0], point[1], bounds); segment += (i === 0 ? 'M' : 'L') + x.toFixed(2) + ',' + y.toFixed(2) + ' '; } if (segment) segments.push(segment + 'Z'); } } return segments.join(' '); }
-    function renderMapLegend() { const legend = document.getElementById('map-legend'); if (!(legend instanceof HTMLElement) || hasRenderedMapLegend) return; legend.innerHTML = ['critical', 'high', 'elevated', 'low'].map((level) => '<span><span class="map-dot" style="background:' + (STATUS_COLORS[level] ?? STATUS_COLORS.unknown) + '"></span>' + level + '</span>').join(''); hasRenderedMapLegend = true; }
-    function renderMap() { const map = document.getElementById('analyst-map'); if (!(map instanceof SVGElement)) return; const sortedVisibleRows = getFilteredSortedRegions(); const visibleSlugs = new Set(sortedVisibleRows.map((row) => row.slug)); const visibleGeo = geoRegions.filter((row) => visibleSlugs.has(row.slug)); const mapSignature = getMapSignature(sortedVisibleRows, activeRegionSlug, hoveredRegionSlug); if (visibleGeo.length === 0) { map.innerHTML = ''; lastMapSignature = ''; return; } if (mapSignature === lastMapSignature) return; const bounds = getBoundsFromGeometry(visibleGeo); map.innerHTML = visibleGeo.map((row) => { const isActive = row.slug === activeRegionSlug; const isHovered = row.slug === hoveredRegionSlug; const hasActive = Boolean(activeRegionSlug); const fill = STATUS_COLORS[row.status_band] ?? STATUS_COLORS.unknown; const title = getMapTooltipText(row); return '<path class="map-region' + (isActive ? ' active' : '') + (isHovered && !isActive ? ' hover' : '') + (hasActive && !isActive && !isHovered ? ' dimmed' : '') + '" data-region="' + row.slug + '" data-tooltip="' + title + '" d="' + geometryToPathD(row.geometry, bounds) + '" fill="' + fill + '" stroke="#1a2435" stroke-width="1" cursor="pointer"><title>' + title + '</title></path>'; }).join(''); lastMapSignature = mapSignature; }
-    function showMapTooltip(text, x, y) { const tooltip = document.getElementById('map-tooltip'); if (!(tooltip instanceof HTMLElement)) return; tooltip.textContent = text; tooltip.hidden = false; tooltip.style.left = (x + 12) + 'px'; tooltip.style.top = (y + 12) + 'px'; }
+    function renderMapLegend() {
+      const legend = document.getElementById('map-legend');
+      if (!(legend instanceof HTMLElement) || hasRenderedMapLegend) return;
+      legend.innerHTML = [
+        ['critical', 'Critical risk band'],
+        ['high', 'High risk band'],
+        ['elevated', 'Elevated risk band'],
+        ['low', 'Low risk band'],
+      ].map(([level, label]) => '<span><span class="map-dot" style="background:' + (STATUS_COLORS[level] ?? STATUS_COLORS.unknown) + '"></span>' + label + '</span>').join('');
+      hasRenderedMapLegend = true;
+    }
+    function renderMap() {
+      const map = document.getElementById('analyst-map');
+      if (!(map instanceof SVGElement)) return;
+      const sortedVisibleRows = getFilteredSortedRegions();
+      const visibleSlugs = new Set(sortedVisibleRows.map((row) => row.slug));
+      const visibleGeo = geoRegions.filter((row) => visibleSlugs.has(row.slug));
+      const rowBySlug = new Map(sortedVisibleRows.map((row) => [row.slug, row]));
+      const mapSignature = getMapSignature(sortedVisibleRows, activeRegionSlug, hoveredRegionSlug);
+      if (visibleGeo.length === 0) {
+        map.innerHTML = '';
+        lastMapSignature = '';
+        return;
+      }
+      if (mapSignature === lastMapSignature) return;
+      const bounds = getBoundsFromGeometry(visibleGeo);
+      map.innerHTML = visibleGeo.map((shapeRow) => {
+        const row = rowBySlug.get(shapeRow.slug) ?? shapeRow;
+        const isActive = shapeRow.slug === activeRegionSlug;
+        const isHovered = shapeRow.slug === hoveredRegionSlug;
+        const hasActive = Boolean(activeRegionSlug);
+        const fill = STATUS_COLORS[row.status_band] ?? STATUS_COLORS.unknown;
+        const title = getMapTooltipText(row);
+        return '<path class="map-region' + (isActive ? ' active' : '') + (isHovered && !isActive ? ' hover' : '') + (hasActive && !isActive && !isHovered ? ' dimmed' : '') + '" data-region="' + shapeRow.slug + '" data-name="' + escapeHtml(String(row.name ?? shapeRow.slug)) + '" data-tooltip="' + title + '" data-score="' + formatNum(Number(row.composite_score), 1) + '" data-status="' + String(row.status_band ?? '-') + '" data-confidence="' + String(row.confidence_band ?? '-') + '" data-delta-24h="' + formatNum(Number(row.delta_24h), 1) + '" data-freshness="' + String(row.freshness_state ?? '-') + '" data-evidence="' + String(row.evidence_state ?? '-') + '" d="' + geometryToPathD(shapeRow.geometry, bounds) + '" fill="' + fill + '" stroke="#1a2435" stroke-width="1" cursor="pointer"><title>' + title + '</title></path>';
+      }).join('');
+      lastMapSignature = mapSignature;
+    }
+    function showMapTooltip(html, x, y) {
+      const tooltip = document.getElementById('map-tooltip');
+      if (!(tooltip instanceof HTMLElement)) return;
+      tooltip.innerHTML = html;
+      tooltip.hidden = false;
+      tooltip.style.left = (x + 12) + 'px';
+      tooltip.style.top = (y + 12) + 'px';
+    }
     function hideMapTooltip() { const tooltip = document.getElementById('map-tooltip'); if (!(tooltip instanceof HTMLElement)) return; tooltip.hidden = true; }
     function setHoveredRegion(slug) { if (hoveredRegionSlug === slug) return; hoveredRegionSlug = slug; renderRegionsTable(regions); renderMap(); }
     function syncRegionViews() { const visible = getFilteredSortedRegions(); const previousActive = activeRegionSlug; activeRegionSlug = deriveNextActiveRegionSlug(visible.map((row) => row.slug), activeRegionSlug); if (previousActive !== activeRegionSlug) hoveredRegionSlug = null; renderRegionsTable(regions); renderMap(); }
@@ -546,7 +604,26 @@ export function getAnalystConsoleClientScript(): string {
     document.body.addEventListener('mouseout', (event) => { const target = event.target; if (!(target instanceof HTMLElement)) return; const regionNode = target.closest('[data-region]'); if (!(regionNode instanceof HTMLElement)) return; const related = event.relatedTarget; if (related instanceof HTMLElement && related.closest('[data-region]') === regionNode) return; if (hoveredRegionSlug && hoveredRegionSlug !== activeRegionSlug) setHoveredRegion(null); });
     document.body.addEventListener('click', (event) => { const target = event.target; if (!(target instanceof HTMLElement)) return; const pin = target.closest('[data-pin-section]'); if (pin instanceof HTMLElement) { event.preventDefault(); const key = pin.getAttribute('data-pin-section'); if (key) { togglePin(key); lastDetailSignature = ''; void loadRegion(activeRegionSlug, true); } return; } const regionNode = target.closest('[data-region]'); if (!(regionNode instanceof HTMLElement)) return; const slug = regionNode.getAttribute('data-region'); if (!slug) return; event.preventDefault(); event.stopPropagation(); setHoveredRegion(null); void loadRegion(slug, true); });
     document.getElementById('analyst-map').addEventListener('click', (event) => { const target = event.target; if (!(target instanceof SVGElement)) return; const path = target.closest('.map-region'); if (!(path instanceof SVGElement)) return; const slug = path.getAttribute('data-region'); if (!slug) return; event.preventDefault(); event.stopPropagation(); setHoveredRegion(null); void loadRegion(slug, true); });
-    document.getElementById('analyst-map').addEventListener('mousemove', (event) => { const target = event.target; if (!(target instanceof SVGElement)) return; const path = target.closest('.map-region'); if (!(path instanceof SVGElement)) { hideMapTooltip(); return; } const slug = path.getAttribute('data-region'); if (slug && slug !== activeRegionSlug) setHoveredRegion(slug); const tooltip = path.getAttribute('data-tooltip'); if (!tooltip) { hideMapTooltip(); return; } showMapTooltip(tooltip + ' · click to lock active region', event.clientX, event.clientY); });
+    document.getElementById('analyst-map').addEventListener('mousemove', (event) => {
+      const target = event.target;
+      if (!(target instanceof SVGElement)) return;
+      const path = target.closest('.map-region');
+      if (!(path instanceof SVGElement)) { hideMapTooltip(); return; }
+      const slug = path.getAttribute('data-region');
+      if (slug && slug !== activeRegionSlug) setHoveredRegion(slug);
+      const tooltipLabel = path.getAttribute('data-tooltip');
+      if (!tooltipLabel) { hideMapTooltip(); return; }
+      const tooltipHtml = getMapTooltipHtml({
+        name: path.getAttribute('data-name') ?? slug ?? '-',
+        composite_score: path.getAttribute('data-score'),
+        status_band: path.getAttribute('data-status'),
+        confidence_band: path.getAttribute('data-confidence'),
+        delta_24h: path.getAttribute('data-delta-24h'),
+        freshness_state: path.getAttribute('data-freshness'),
+        evidence_state: path.getAttribute('data-evidence'),
+      }) + '<p class="map-tooltip-hint">Click to lock region and continue in table/detail.</p>';
+      showMapTooltip(tooltipHtml, event.clientX, event.clientY);
+    });
     document.getElementById('analyst-map').addEventListener('mouseleave', () => { hideMapTooltip(); setHoveredRegion(null); });
 
     applyLayout();
