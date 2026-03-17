@@ -43,3 +43,9 @@
 1. Expand fixture-based interaction checks for region-switch + mode/pin persistence edge cases.
 2. Keep compare output compact while retaining deterministic inspectability.
 3. Keep posture/policy language and enforcement behavior aligned during future UI/API changes.
+
+## Sprint note: compare/pinning/map ergonomics pass
+- Compare readability upgraded for first-pass analyst use without changing semantics or score math: explicit deterministic answer cards plus grouped compare tables (score/state, trust cues, sub-score deltas, factor changes).
+- Pinned sections now behave more intentionally: clearer empty-state guidance, clearer pin control affordances, and reduced confusion at source location via de-emphasized original section shells when pinned.
+- Internal map ergonomics refined narrowly for region selection speed and triage context (clearer active emphasis + more useful tooltip cues) while keeping map subordinate to table/detail workflow.
+

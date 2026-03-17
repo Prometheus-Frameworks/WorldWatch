@@ -25,3 +25,15 @@
 - [x] Pinned section empty-state and duplication behavior improved while preserving localStorage persistence.
 - [x] Added reset-analyst-layout control for clearing persisted detail/compare/pin preferences.
 - [x] Updated analyst UX validation documentation for “what changed?” + “should I escalate?” speed checks.
+
+## Completed: PR29 Compare/pinning/map ergonomics polish
+- [x] Grouped snapshot compare into first-scan cards + deterministic table clusters (state/trust/sub-score/factor).
+- [x] Added explicit compare answer cards for what changed + trust direction + disagreement/divergence state shifts.
+- [x] Tightened pin UX (empty-state clarity, stronger controls, no confusing duplicate full-content rendering).
+- [x] Improved map triage ergonomics (clearer active emphasis, richer tooltip cues, preserved map-subordinate workflow).
+- [x] Updated analyst UX validation checklist for compare/pinning/map checks and <60-second Focus Mode confirmation.
+
+## Next
+- Validate edge-case behavior with many pinned sections and rapid filter/sort region switching.
+- Decide whether next increment should prioritize analyst polish (density management), operational guardrails (default resets), or map hardening (geometry edge cases).
+

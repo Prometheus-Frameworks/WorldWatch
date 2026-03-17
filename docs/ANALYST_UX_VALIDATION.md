@@ -40,3 +40,25 @@ Use these canonical fixture scenarios for spot checks:
 
 - `npm test -- src/api/analystPayload.test.ts`
 - `npm test -- src/console/renderAnalystConsole.test.ts`
+
+## Sprint addendum: compare/pinning/map polish checks
+
+Run these after any detail-panel UX change touching compare, pins, or map sync:
+
+- **Compare first-scan readability**
+  - Confirm top compare cards answer in <10 seconds: what changed, trust direction (improved/degraded/flat), disagreement appeared/disappeared, narrative-leading divergence activated/deactivated.
+  - Confirm compare remains deterministic: grouped cards/tables (score+state, trust cues, sub-score deltas, factor changes) with no black-box prose summary.
+
+- **Pinned sections usefulness vs clutter**
+  - Empty state should explain why to pin and suggest likely sections (compare/disagreement/stale evidence).
+  - Pinned source section should be de-emphasized/annotated in original location, not duplicated in full.
+  - Verify pin/unpin controls remain consistent in both original and pinned cards.
+
+- **Map usefulness for faster region selection**
+  - Tooltip must expose trust + momentum context (status/score/confidence/freshness + delta).
+  - Active region should remain visually unambiguous relative to hovered/dimmed regions.
+  - Map selection and table/detail selection should stay in sync when filtering/sorting or switching regions.
+
+- **Focus Mode speed check**
+  - Reconfirm Focus Mode still supports a <60 second trust read for at least 3 fixture scenarios.
+
