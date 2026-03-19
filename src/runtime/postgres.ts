@@ -15,6 +15,7 @@ export interface RuntimeDb {
 
 export async function createRuntimeDb(databaseUrl: string): Promise<RuntimeDb> {
   const pool = await createPool(databaseUrl);
+  await verifyDatabaseConnection(pool);
 
   return {
     db: {
@@ -49,4 +50,13 @@ async function createPool(databaseUrl: string): Promise<PoolLike> {
   }
 
   return new Pool({ connectionString: databaseUrl });
+}
+
+async function verifyDatabaseConnection(pool: PoolLike): Promise<void> {
+  try {
+    await pool.query('SELECT 1 AS ok');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to connect to Postgres using DATABASE_URL. ${message}`);
+  }
 }

@@ -1,48 +1,26 @@
 # SESSION_STATE
 
-## Latest landed sprint
-- Analyst interaction polish + default-behavior pass landed for Focus Mode, compare readability, and pinned sections.
-- Focus Mode remains the default and now emphasizes a stable first-scan stack: escalation posture, freshness/confidence/evidence, divergence cue (when active), disagreement summary, stale high-impact sources, and snapshot compare summary.
-- Snapshot compare now surfaces faster first-scan deltas (composite, status/confidence/freshness/evidence, sub-scores, disagreement/divergence flags) while staying deterministic and table/card based.
-- Pinned sections now have a clearer empty state, stronger pin/unpin affordances, no confusing duplicate display, and preserved localStorage persistence.
+## Latest landed sequence
+1. **Operational guardrails / source degradation** landed: deterministic source-trust cues on analyst surfaces plus recurring stale/failure trend telemetry in Ops.
+2. **Release-readiness pass** landed: posture/policy visibility, compare/Focus Mode checks, and degraded-source workflow checks were consolidated into a checklist.
+3. **Railway deployment readiness** landed: split web vs scheduler deploy roles, internal-first posture guidance, and a minimal Railway runbook were added.
+4. **Current hardening pass (this sprint)** tightens repo-memory accuracy, Railway boot clarity, and deterministic startup/readiness behavior.
 
 ## Current focus
-- Preserve deterministic, inspectable scoring/explainability behavior while reducing analyst interaction friction in detail workflows.
+- Keep the internal Railway launch path boring and deterministic.
+- Make web/scheduler roles explicit in code, scripts, and docs.
+- Keep health/readiness behavior honest: fail early on missing DB config or failed DB connectivity.
 
 ## Current risks
-- UI density can still increase if too many sections are pinned at once.
-- Compare interpretation quality still depends on analysts following scan-order discipline under time pressure.
+- First deploy can still fail if Railway variables are incomplete or pointed at the wrong Postgres instance.
+- `/healthz` is intentionally a process + database readiness check, not a full end-to-end analyst workflow probe.
+- Early internal deployments will have sparse compare/history data until enough cycle snapshots accumulate.
 
 ## Next review target
-- Small guardrail pass on focus/full and compare mode defaults under repeated region switching; then continue fixture-driven analyst workflow validation.
+- First internal Railway boot: verify migrate/seed flow, `DEPLOYMENT_POSTURE=internal`, and one clean scheduler cycle before any broader visibility change.
 
-## Session update (PR28)
-- Added compare-mode local persistence (`worldwatch.analyst.compare_mode`) and a scoped “Reset analyst layout” control that clears persisted detail mode, compare mode, and pins.
-- Added compare highlight cards and expanded deterministic compare summary rows for first-pass readability.
-- Tightened pinned section rendering to avoid duplicated section confusion.
-
-## Session update (PR29)
-- Compare section regrouped for faster first-pass scan with explicit answer cards for: what changed, trust direction, disagreement change, and narrative-leading divergence activation state.
-- Snapshot compare tables are now grouped by purpose (score/state, trust cues, sub-score deltas, factor changes) to reduce wall-of-table friction while preserving deterministic inspectability.
-- Pin UX tightened with clearer empty-state guidance, more explicit pin controls, and de-emphasized original section shells when pinned to avoid awkward duplication.
-- Internal map ergonomics improved via clearer active emphasis and richer tooltip context to accelerate region selection/triage without shifting away from table/detail-first workflow.
-- Remaining friction: high pin counts can still add visual density; next likely priority is analyst polish with small operational guardrails around default/persistence edge cases.
-
-
-## Session update (PR30)
-- Added compact compare scan strips above compare tables so analysts can read state transitions and trust-cue changes in one pass while keeping deterministic table detail below.
-- Tightened pin affordances and messaging (clearer pin/unpin language, clearer empty state, and explicit de-emphasis note for original sections) while preserving `worldwatch.analyst.pins` persistence.
-- Improved map/table/detail coordination with explicit map click-to-lock behavior and clearer active/hover visual distinction without elevating map over table/detail workflow.
-
-
-## Session update (PR31)
-- Tightened internal map ergonomics for faster triage selection without changing scoring semantics: stronger active-region treatment, clearer hover/active separation, and simpler legend copy.
-- Reworked map tooltip into compact deterministic triage structure (region, composite, status, confidence, Δ24h, freshness/evidence cue) so analysts can decide click-worthiness quickly.
-- Preserved table/detail primacy and existing Focus Mode, compare, pin persistence, and posture/policy visibility behavior while improving map-origin selection sync.
-- Remaining weak spot: spatial workflow still relies on compact SVG geometry and can feel dense under heavy filter churn; likely next decision is operational guardrails vs stop-and-stabilize after another validation sweep.
-
-
-## Session update (PR32)
-- Landed operational guardrails for recurring source degradation with deterministic ops summary telemetry: stale-source trend delta, source-failure trend delta, and per-source recurring pattern classification.
-- Ops console now exposes degradation trend indicators and recurring source quality patterns to make failure/staleness drift visible over time.
-- Analyst dashboard now includes a source trust cue on each region/feed entry, helping analysts distinguish potential source-quality drag from true region-risk movement without changing score semantics.
+## Canonical system state
+- **Web service** is the analyst dashboard + ops console + API surface only.
+- **Scheduler service** is recurring cycle execution only.
+- Canonical product scope remains: backend, scheduler, ops console, analyst dashboard, internal map, posture enforcement, policy/about surface, deterministic explainability, Focus Mode, pinned sections, snapshot compare, source-quality guardrails, release-readiness checklist, and Railway deployment prep.
+- Non-goal remains unchanged: no public marketing UI and no scoring-math changes.

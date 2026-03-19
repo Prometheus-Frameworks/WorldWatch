@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { loadRuntimeConfig } from '../runtime/config.ts';
 import { createLogger } from '../runtime/logger.ts';
 import { createRuntimeDb } from '../runtime/postgres.ts';
+import { logServiceStartupSummary } from '../runtime/service.ts';
 
 const logger = createLogger('db-migrations');
 
@@ -54,7 +55,8 @@ export async function runMigrations(db: MigrationDb, migrationsDir: string): Pro
 }
 
 async function main(): Promise<void> {
-  const config = loadRuntimeConfig(process.env);
+  const config = loadRuntimeConfig(process.env, { serviceRole: 'migrate' });
+  logServiceStartupSummary(logger, 'migrate', config);
   const runtimeDb = await createRuntimeDb(config.databaseUrl);
 
   try {
