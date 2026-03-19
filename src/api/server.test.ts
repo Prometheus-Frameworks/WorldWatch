@@ -4,6 +4,55 @@ import test from 'node:test';
 import type { QueryableDb } from '../ingestion/types.ts';
 import { createWorldWatchApiServer } from './server.ts';
 
+
+test('healthz returns readiness payload when web service is ready', async () => {
+  const db: QueryableDb = {
+    async query<T>() {
+      return { rows: [] as T[] };
+    },
+  };
+  const server = createWorldWatchApiServer(db);
+
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  if (!address) throw new Error('Server address unavailable');
+
+  const response = await fetch(`http://127.0.0.1:${address.port}/healthz`);
+  assert.equal(response.status, 200);
+  const payload = (await response.json()) as Record<string, unknown>;
+  assert.equal(payload.status, 'ok');
+  assert.equal(payload.service, 'web');
+  assert.equal(payload.readiness, 'ready');
+
+  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+});
+
+test('healthz returns 503 when readiness probe fails', async () => {
+  const db: QueryableDb = {
+    async query<T>() {
+      return { rows: [] as T[] };
+    },
+  };
+  const server = createWorldWatchApiServer(db, undefined, undefined, {
+    isReady: async () => {
+      throw new Error('db offline');
+    },
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  if (!address) throw new Error('Server address unavailable');
+
+  const response = await fetch(`http://127.0.0.1:${address.port}/healthz`);
+  assert.equal(response.status, 503);
+  const payload = (await response.json()) as Record<string, unknown>;
+  assert.equal(payload.status, 'unavailable');
+  assert.equal(payload.service, 'web');
+  assert.equal(payload.readiness, 'database_unavailable');
+
+  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+});
+
 test('server exposes ops endpoint routing', async () => {
   const db: QueryableDb = {
     async query<T>(sql: string) {

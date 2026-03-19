@@ -1,48 +1,43 @@
 # WorldWatch Internal Release Readiness Checklist
 
-Use this checklist before expanding internal trial usage.
+Use this checklist before broadening usage beyond the first internal Railway deployment.
 
 ## 1) Analyst workflow sanity
-- [ ] Region table, feed, and map all load with deterministic ordering.
-- [ ] Empty states are actionable (clear filters, run cycle guidance).
-- [ ] Detail header shows score posture **and** source-quality cue.
-- [ ] Focus mode scan order is followed before full-detail expansion.
-- [ ] Pinned sections persist across region switches and can be reset.
+- [ ] Region table, feed, and internal map load with deterministic ordering.
+- [ ] Focus Mode remains the default first-scan path.
+- [ ] Pinned sections persist and reset cleanly.
+- [ ] Snapshot compare remains readable and deterministic.
+- [ ] Source-quality/trust cue appears on dashboard and detail surfaces.
 
 ## 2) Ops sanity
-- [ ] Posture banner is visible at the top of Ops.
-- [ ] Manual cycle trigger behavior matches posture restrictions.
-- [ ] Latest cycle, runs, failures, and freshness tables all render.
-- [ ] Source degradation section clearly separates input health from region risk.
+- [ ] Posture banner is visible in Ops.
+- [ ] Manual cycle trigger behavior matches posture rules.
+- [ ] Latest cycle, cycle history, failures, freshness, and degradation views all render.
+- [ ] Source degradation indicators clearly separate source trouble from region-risk movement.
 
-## 3) Source freshness / degradation checks
-- [ ] Dashboard rows and feed cards show source-quality cue with deterministic icon/copy.
-- [ ] Compare flow shows whether source-quality drag changed between snapshots.
-- [ ] Degradation trend deltas (24h vs prior 24h) are present in Ops.
-- [ ] Recurring degradation patterns are visible; otherwise explicit no-patterns message is shown.
+## 3) Posture + policy visibility
+- [ ] Analyst surface shows posture banner and About/Usage/Terms access.
+- [ ] Ops surface shows posture banner and policy footer.
+- [ ] `/about` is reachable and preserves canonical civilian/public-source usage language.
+- [ ] No regression to `public_read_only` manual-trigger blocking behavior.
 
-## 4) Posture + policy visibility
-- [ ] Analyst page shows posture banner and About/Usage/Terms access.
-- [ ] Ops page shows posture banner and policy footer.
-- [ ] About page is reachable from both analyst and ops surfaces.
+## 4) Railway launch verification
+- [ ] Railway Postgres exists.
+- [ ] `DATABASE_URL` is wired to both web and scheduler services.
+- [ ] Required source endpoint vars are set on both services.
+- [ ] `DEPLOYMENT_POSTURE=internal` is set for first launch.
+- [ ] `npm run db:migrate` completed successfully.
+- [ ] `npm run db:seed` completed successfully.
+- [ ] Web launched with `npm run deploy:web`.
+- [ ] Scheduler launched with `npm run deploy:scheduler`.
+- [ ] `GET /healthz` returns `200`.
+- [ ] `GET /api/ops/health` returns the structured ops health payload.
+- [ ] `GET /api/analyst/dashboard` returns the analyst bootstrap payload.
+- [ ] Scheduler completed at least one clean cycle without overlap errors.
 
-## 5) Compare / Focus mode sanity under degraded-source conditions
-- [ ] Compare highlights include source-quality cue status in latest snapshot.
-- [ ] Trust-cue strip shows disagreement/divergence and source-quality drag state for both snapshots.
-- [ ] Compare signals table includes source-quality drag changed yes/no.
-- [ ] Focus mode still collapses/de-emphasizes sections correctly with pinned sections active.
-
-## 6) Known limitations
-- Source-quality cues are heuristic posture aids; they do not replace analyst judgment.
-- Snapshot compare relies on available history and can be sparse early in a deployment.
-- Map is an internal spatial context aid, not a standalone decision surface.
-- This checklist does not alter scoring math; scoring behavior remains canonical.
-
-## 7) Railway deployment readiness
-- [ ] Web service starts with `npm run deploy:web` and serves analyst + ops + API only.
-- [ ] Scheduler service starts with `npm run deploy:scheduler` and runs recurring cycle execution only.
-- [ ] Railway web healthcheck is configured to `GET /healthz` and returns `200` after boot.
-- [ ] `DATABASE_URL` is wired from Railway Postgres to both services.
-- [ ] `DEPLOYMENT_POSTURE` is explicitly set (recommended first launch: `internal`).
-- [ ] Required source endpoint variables are set for all canonical ingestion jobs.
-- [ ] `docs/RAILWAY_DEPLOY.md` steps were completed and post-boot verification passed.
+## 5) Known limitations
+- `/healthz` is a deterministic DB-backed readiness check, not a full functional SLA probe.
+- Source-quality cues are deterministic interpretation aids; they do not replace analyst judgment.
+- Snapshot compare and history can be sparse on a fresh deployment.
+- Internal map remains supporting context, not the primary workflow.
+- This checklist does not change score math.

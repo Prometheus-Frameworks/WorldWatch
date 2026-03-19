@@ -30,10 +30,15 @@ export interface ApiCycleControl {
   isCycleRunning?: () => boolean;
 }
 
+export interface ApiReadinessCheck {
+  isReady: () => Promise<void>;
+}
+
 export function createWorldWatchApiServer(
   db: QueryableDb,
   cycleControl?: ApiCycleControl,
   posture: DeploymentPostureConfig = getDeploymentPostureConfig(),
+  readinessCheck: ApiReadinessCheck = { isReady: () => db.query('SELECT 1 AS ok').then(() => undefined) },
 ) {
   let manualCycleInFlight: Promise<RunWorldWatchCycleResult> | null = null;
 
@@ -61,7 +66,7 @@ export function createWorldWatchApiServer(
 
   return createServer(async (req, res) => {
     try {
-      await routeRequest(db, req, res, { runManualCycle, isCycleRunning }, posture);
+      await routeRequest(db, req, res, { runManualCycle, isCycleRunning }, posture, readinessCheck);
     } catch (error) {
       sendJson(res, 500, { error: 'internal_error', message: error instanceof Error ? error.message : String(error) });
     }
@@ -74,6 +79,7 @@ async function routeRequest(
   res: ServerResponse,
   cycleHandlers: { runManualCycle: () => Promise<RunWorldWatchCycleResult>; isCycleRunning: () => boolean },
   posture: DeploymentPostureConfig,
+  readinessCheck: ApiReadinessCheck,
 ): Promise<void> {
   const method = req.method ?? 'GET';
   const requestUrl = new URL(req.url ?? '/', 'http://localhost');
@@ -86,10 +92,10 @@ async function routeRequest(
 
   if (method === 'GET' && path === '/healthz') {
     try {
-      await db.query('SELECT 1 AS ok');
-      sendJson(res, 200, { status: 'ok' });
+      await readinessCheck.isReady();
+      sendJson(res, 200, { status: 'ok', service: 'web', readiness: 'ready' });
     } catch {
-      sendJson(res, 503, { status: 'unavailable' });
+      sendJson(res, 503, { status: 'unavailable', service: 'web', readiness: 'database_unavailable' });
     }
     return;
   }
@@ -155,7 +161,6 @@ async function routeRequest(
     return;
   }
 
-
   if (path === '/api/analyst/dashboard') {
     sendJson(res, 200, await getAnalystDashboard(db));
     return;
@@ -175,7 +180,6 @@ async function routeRequest(
     sendJson(res, 200, latestCycle);
     return;
   }
-
 
   if (path === '/api/ops/cycles') {
     const limitRaw = requestUrl.searchParams.get('limit');

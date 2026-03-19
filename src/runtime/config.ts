@@ -1,5 +1,6 @@
 import type { RunWorldWatchCycleInput, SourceEndpointConfig } from '../jobs/runWorldWatchCycle.ts';
 import { getDeploymentPostureConfig, type DeploymentPostureConfig } from '../console/posture.ts';
+import type { RuntimeServiceRole } from './service.ts';
 
 export interface RuntimeConfig {
   port: number;
@@ -16,25 +17,31 @@ export interface RuntimeConfig {
   };
 }
 
-export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig {
+export interface RuntimeConfigOptions {
+  serviceRole?: RuntimeServiceRole;
+}
+
+export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env, options: RuntimeConfigOptions = {}): RuntimeConfig {
+  const serviceRole = options.serviceRole ?? 'web';
+
   return {
     port: readInt(env.PORT, 8787),
-    databaseUrl: readRequired(env.DATABASE_URL, 'DATABASE_URL'),
+    databaseUrl: readRequired(env.DATABASE_URL, 'DATABASE_URL', serviceRole),
     cycleIntervalMinutes: readInt(env.CYCLE_INTERVAL_MINUTES, 15),
     deployment: getDeploymentPostureConfig(env),
     sources: {
-      acled: buildSourceConfig(env, 'ACLED_URL'),
-      gdelt: buildSourceConfig(env, 'GDELT_URL'),
-      imfPortWatch: buildSourceConfig(env, 'IMF_PORTWATCH_URL'),
-      eia: buildSourceConfig(env, 'EIA_URL'),
-      unhcr: buildSourceConfig(env, 'UNHCR_URL'),
-      nasaFirms: buildSourceConfig(env, 'NASA_FIRMS_URL'),
+      acled: buildSourceConfig(env, 'ACLED_URL', serviceRole),
+      gdelt: buildSourceConfig(env, 'GDELT_URL', serviceRole),
+      imfPortWatch: buildSourceConfig(env, 'IMF_PORTWATCH_URL', serviceRole),
+      eia: buildSourceConfig(env, 'EIA_URL', serviceRole),
+      unhcr: buildSourceConfig(env, 'UNHCR_URL', serviceRole),
+      nasaFirms: buildSourceConfig(env, 'NASA_FIRMS_URL', serviceRole),
     },
   };
 }
 
 export function loadCycleInputFromEnv(env: NodeJS.ProcessEnv, db: RunWorldWatchCycleInput['db']): RunWorldWatchCycleInput {
-  const config = loadRuntimeConfig(env);
+  const config = loadRuntimeConfig(env, { serviceRole: 'scheduler' });
   return {
     db,
     acled: config.sources.acled,
@@ -46,15 +53,15 @@ export function loadCycleInputFromEnv(env: NodeJS.ProcessEnv, db: RunWorldWatchC
   };
 }
 
-function buildSourceConfig(env: NodeJS.ProcessEnv, urlEnvName: string): SourceEndpointConfig {
+function buildSourceConfig(env: NodeJS.ProcessEnv, urlEnvName: string, serviceRole: RuntimeServiceRole): SourceEndpointConfig {
   return {
-    url: readRequired(env[urlEnvName], urlEnvName),
+    url: readRequired(env[urlEnvName], urlEnvName, serviceRole),
   };
 }
 
-function readRequired(value: string | undefined, key: string): string {
+function readRequired(value: string | undefined, key: string, serviceRole: RuntimeServiceRole): string {
   if (!value || value.trim().length === 0) {
-    throw new Error(`Missing required environment variable: ${key}`);
+    throw new Error(`Missing required environment variable: ${key}. WorldWatch ${serviceRole} service cannot start without it.`);
   }
   return value;
 }

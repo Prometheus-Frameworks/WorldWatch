@@ -3,11 +3,13 @@ import { loadCycleInputFromEnv, loadRuntimeConfig } from '../runtime/config.ts';
 import { createLogger } from '../runtime/logger.ts';
 import { createRuntimeDb } from '../runtime/postgres.ts';
 import { createCycleScheduler } from '../runtime/scheduler.ts';
+import { logServiceStartupSummary } from '../runtime/service.ts';
 
 const logger = createLogger('scheduler-script');
 
 async function main(): Promise<void> {
-  const config = loadRuntimeConfig(process.env);
+  const config = loadRuntimeConfig(process.env, { serviceRole: 'scheduler' });
+  logServiceStartupSummary(logger, 'scheduler', config);
   const runtimeDb = await createRuntimeDb(config.databaseUrl);
 
   const scheduler = createCycleScheduler({
@@ -34,6 +36,11 @@ async function main(): Promise<void> {
 }
 
 void main().catch((error) => {
-  logger.error({ event: 'scheduler.fatal', status: 'failed', message: error instanceof Error ? error.message : String(error) });
+  logger.error({
+    event: 'scheduler.fatal',
+    status: 'failed',
+    service_role: 'scheduler',
+    message: error instanceof Error ? error.message : String(error),
+  });
   process.exit(1);
 });
