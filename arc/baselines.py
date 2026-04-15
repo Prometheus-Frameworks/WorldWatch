@@ -22,6 +22,12 @@ class CohortKeys:
     age_bucket: str | None
 
 
+@dataclass(frozen=True)
+class CsvTable:
+    headers: list[str]
+    rows: list[dict[str, str]]
+
+
 def build_arc_baselines(
     player_weeks_path: Path = PLAYER_WEEK_INPUT,
     player_seasons_path: Path = PLAYER_SEASON_INPUT,
@@ -31,27 +37,29 @@ def build_arc_baselines(
 ) -> tuple[Path, Path]:
     _validate_inputs_exist(player_weeks_path, player_seasons_path)
 
-    season_rows = _read_csv_rows(player_seasons_path)
-    week_rows = _read_csv_rows(player_weeks_path)
+    season_table = _read_csv_table(player_seasons_path)
+    week_table = _read_csv_table(player_weeks_path)
 
     primary_rows = _build_baseline_rows(
-        season_rows=season_rows,
-        week_rows=week_rows,
+        season_rows=season_table.rows,
+        week_table=week_table,
         include_age_bucket=True,
         small_sample_threshold=small_sample_threshold,
     )
     fallback_rows = _build_baseline_rows(
-        season_rows=season_rows,
-        week_rows=week_rows,
+        season_rows=season_table.rows,
+        week_table=week_table,
         include_age_bucket=False,
         small_sample_threshold=small_sample_threshold,
     )
 
-    _write_csv(primary_output_path, primary_rows, include_age_bucket=True)
-    _write_csv(fallback_output_path, fallback_rows, include_age_bucket=False)
+    primary_fieldnames = _build_fieldnames(include_age_bucket=True)
+    fallback_fieldnames = _build_fieldnames(include_age_bucket=False)
+    _write_csv(primary_output_path, primary_rows, fieldnames=primary_fieldnames)
+    _write_csv(fallback_output_path, fallback_rows, fieldnames=fallback_fieldnames)
 
-    _try_write_parquet(primary_output_path, primary_rows)
-    _try_write_parquet(fallback_output_path, fallback_rows)
+    _try_write_parquet(primary_output_path, primary_rows, fieldnames=primary_fieldnames)
+    _try_write_parquet(fallback_output_path, fallback_rows, fieldnames=fallback_fieldnames)
 
     return primary_output_path, fallback_output_path
 
@@ -64,15 +72,17 @@ def _validate_inputs_exist(*paths: Path) -> None:
         )
 
 
-def _read_csv_rows(path: Path) -> list[dict[str, str]]:
+def _read_csv_table(path: Path) -> CsvTable:
     with path.open("r", newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
-        return list(reader)
+        rows = list(reader)
+        headers = reader.fieldnames or []
+        return CsvTable(headers=headers, rows=rows)
 
 
 def _build_baseline_rows(
     season_rows: list[dict[str, str]],
-    week_rows: list[dict[str, str]],
+    week_table: CsvTable,
     *,
     include_age_bucket: bool,
     small_sample_threshold: int,
@@ -81,7 +91,8 @@ def _build_baseline_rows(
     grouped_seasons = _group_rows_by_cohort(filtered_seasons, include_age_bucket=include_age_bucket)
 
     grouped_event_rates = _aggregate_event_rates(
-        week_rows,
+        week_rows=week_table.rows,
+        week_headers=week_table.headers,
         include_age_bucket=include_age_bucket,
     )
 
@@ -153,15 +164,29 @@ def _group_rows_by_cohort(
 
 
 def _aggregate_event_rates(
-    week_rows: list[dict[str, str]], *, include_age_bucket: bool
+    week_rows: list[dict[str, str]],
+    week_headers: list[str],
+    *,
+    include_age_bucket: bool,
 ) -> dict[CohortKeys, dict[str, float | None]]:
-    player_col = _first_present_column(week_rows, ["player_id", "athlete_id", "player"])
-    season_col = _first_present_column(week_rows, ["season", "season_year", "year"])
-    spike_col = _first_present_column(week_rows, ["spike", "is_spike_week", "spike_week"])
-    dud_col = _first_present_column(week_rows, ["dud", "is_dud_week", "dud_week"])
+    player_col = _first_present_column(week_headers, ["player_id", "athlete_id", "player"])
+    season_col = _first_present_column(week_headers, ["season", "season_year", "year"])
+    spike_col = _first_present_column(week_headers, ["spike", "is_spike_week", "spike_week"])
+    dud_col = _first_present_column(week_headers, ["dud", "is_dud_week", "dud_week"])
 
-    if not (player_col and season_col and spike_col and dud_col):
-        return {}
+    missing: list[str] = []
+    if player_col is None:
+        missing.append("player identifier column (one of: player_id, athlete_id, player)")
+    if season_col is None:
+        missing.append("season column (one of: season, season_year, year)")
+    if spike_col is None:
+        missing.append("spike indicator column (one of: spike, is_spike_week, spike_week)")
+    if dud_col is None:
+        missing.append("dud indicator column (one of: dud, is_dud_week, dud_week)")
+    if missing:
+        raise ValueError(
+            "arc_player_weeks.csv is missing required columns: " + "; ".join(missing)
+        )
 
     by_player_season: dict[tuple[str, str, CohortKeys], list[dict[str, str]]] = {}
     for row in week_rows:
@@ -303,18 +328,15 @@ def _normalize_text(value: str | None) -> str | None:
     return normalized
 
 
-def _first_present_column(rows: list[dict[str, str]], columns: list[str]) -> str | None:
-    if not rows:
-        return None
-    headers = set(rows[0].keys())
+def _first_present_column(headers: list[str], columns: list[str]) -> str | None:
+    header_set = set(headers)
     for column in columns:
-        if column in headers:
+        if column in header_set:
             return column
     return None
 
 
-def _write_csv(path: Path, rows: list[dict[str, object]], *, include_age_bucket: bool) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+def _build_fieldnames(*, include_age_bucket: bool) -> list[str]:
     fieldnames = ["position", "career_year"]
     if include_age_bucket:
         fieldnames.append("age_bucket")
@@ -335,6 +357,11 @@ def _write_csv(path: Path, rows: list[dict[str, object]], *, include_age_bucket:
             "is_small_sample",
         ]
     )
+    return fieldnames
+
+
+def _write_csv(path: Path, rows: list[dict[str, object]], *, fieldnames: list[str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
 
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -343,7 +370,9 @@ def _write_csv(path: Path, rows: list[dict[str, object]], *, include_age_bucket:
             writer.writerow(row)
 
 
-def _try_write_parquet(csv_path: Path, rows: list[dict[str, object]]) -> None:
+def _try_write_parquet(
+    csv_path: Path, rows: list[dict[str, object]], *, fieldnames: list[str]
+) -> None:
     try:
         import pandas as pd  # type: ignore
     except Exception:
@@ -351,7 +380,7 @@ def _try_write_parquet(csv_path: Path, rows: list[dict[str, object]]) -> None:
 
     parquet_path = csv_path.with_suffix(".parquet")
     try:
-        dataframe = pd.DataFrame(rows)
+        dataframe = pd.DataFrame(rows, columns=fieldnames)
         dataframe.to_parquet(parquet_path, index=False)
     except Exception:
         return
