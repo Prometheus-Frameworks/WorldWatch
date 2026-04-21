@@ -341,6 +341,35 @@ test('server serves analyst dashboard at root and ops at /ops', async () => {
 
 
 
+
+test('public_read_only posture serves civilian homepage at root and keeps analyst route available', async () => {
+  const db: QueryableDb = { query: async <T>() => ({ rows: [] as T[] }) };
+  const server = createWorldWatchApiServer(db, undefined, {
+    posture: 'public_read_only',
+    bannerText: 'Public read-only posture',
+    subtitleText: 'Read-only visibility for civilian public-source monitoring outputs.',
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  if (!address) throw new Error('Server address unavailable');
+
+  const publicResponse = await fetch(`http://127.0.0.1:${address.port}/`);
+  assert.equal(publicResponse.status, 200);
+  const publicHtml = await (publicResponse as unknown as { text: () => Promise<string> }).text();
+  assert.ok(publicHtml.includes('WorldWatch: Civilian Readiness View'));
+  assert.ok(publicHtml.includes('id="civilian-cards"'));
+  assert.ok(publicHtml.includes("dashboard: '/api/analyst/dashboard'"));
+
+  const analystResponse = await fetch(`http://127.0.0.1:${address.port}/analyst`);
+  assert.equal(analystResponse.status, 200);
+  const analystHtml = await (analystResponse as unknown as { text: () => Promise<string> }).text();
+  assert.ok(analystHtml.includes('WorldWatch Analyst Dashboard'));
+
+  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+});
+
+
 test('ops console disables manual trigger in public_read_only posture', async () => {
   const db: QueryableDb = { query: async <T>() => ({ rows: [] as T[] }) };
   const server = createWorldWatchApiServer(db, undefined, {

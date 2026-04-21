@@ -23,6 +23,7 @@ import {
 import { renderAnalystConsole } from '../console/renderAnalystConsole.ts';
 import { renderOpsConsole } from '../console/renderOpsConsole.ts';
 import { renderPolicyPage } from '../console/renderPolicyPage.ts';
+import { renderPublicHome } from '../console/renderPublicHome.ts';
 import { getDeploymentPostureConfig, isReadOnlyPosture, type DeploymentPostureConfig } from '../console/posture.ts';
 
 export interface ApiCycleControl {
@@ -85,7 +86,17 @@ async function routeRequest(
   const requestUrl = new URL(req.url ?? '/', 'http://localhost');
   const path = requestUrl.pathname;
 
-  if (method === 'GET' && (path === '/' || path === '/analyst')) {
+  if (method === 'GET' && path === '/') {
+    if (posture.posture === 'public_read_only') {
+      sendHtml(res, 200, renderPublicHome(posture));
+      return;
+    }
+
+    sendHtml(res, 200, renderAnalystConsole(posture));
+    return;
+  }
+
+  if (method === 'GET' && path === '/analyst') {
     sendHtml(res, 200, renderAnalystConsole(posture));
     return;
   }

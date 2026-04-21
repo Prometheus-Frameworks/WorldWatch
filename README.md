@@ -1,16 +1,24 @@
 # WorldWatch
 
-WorldWatch is an internal analyst + operations system for **civilian, public-source geopolitical monitoring**. It ingests open-source signals, scores regional risk snapshots, and serves an analyst dashboard plus an internal ops console.
+WorldWatch is a civilian, public-source geopolitical awareness product with two clear surfaces:
+
+- **Civilian surface (`/`)**: plain-English readiness summaries for public audiences.
+- **Analyst + ops surfaces (`/analyst`, `/ops`)**: deeper regional scoring, feed detail, and runtime visibility.
 
 > WorldWatch is a civilian, public-source monitoring and analysis tool for personal, research, journalistic, and general geopolitical awareness use. It is not intended for military targeting, covert surveillance, sanctions evasion, or use by prohibited persons or entities.
 
 ## Product surfaces
 
-- `GET /` or `GET /analyst` — analyst dashboard (table-first workflow, optional internal SVG map).
-- `GET /ops` — internal operations console (scheduler/runtime visibility and manual cycle trigger).
-- `GET /about` — internal About / Usage / Terms page that preserves canonical civilian-use and acceptable-use statements.
+- `GET /` — civilian readiness homepage (default front door in `DEPLOYMENT_POSTURE=public_read_only`).
+- `GET /analyst` — analyst dashboard (raw feeds, score tables, region drilldowns).
+- `GET /ops` — operations console (cycle/source freshness + runtime visibility).
+- `GET /about` — usage, policy, and terms.
 
-Analyst and ops surfaces render a deployment-posture banner and keep civilian-use guidance visible.
+## Deployment posture behavior
+
+- `internal` (default): `/` and `/analyst` both open the analyst dashboard.
+- `invite_only`: `/` and `/analyst` both open the analyst dashboard with invite-only posture copy.
+- `public_read_only`: `/` opens the civilian readiness homepage; `/analyst` and `/ops` remain available read-only.
 
 ## Data/source coverage
 
@@ -32,8 +40,8 @@ All scripts run with Node TypeScript strip-types mode.
 - `npm run cycle:run` — run one complete ingestion + scoring cycle.
 - `npm run scheduler:start` — run recurring scheduler loop.
 - `npm run api:start` — start API + dashboard server.
-- `npm run deploy:web` — Railway/web boot command (analyst + ops + API server only).
-- `npm run deploy:scheduler` — Railway/scheduler boot command (recurring cycle executor only).
+- `npm run deploy:web` — Railway/web boot command (web + API service).
+- `npm run deploy:scheduler` — Railway/scheduler boot command (recurring cycle executor).
 
 ## Environment variables
 
@@ -62,7 +70,7 @@ All scripts run with Node TypeScript strip-types mode.
 
 ### Analyst endpoints
 
-- `GET /api/analyst/dashboard` (consolidated payload for dashboard bootstrap)
+- `GET /api/analyst/dashboard`
 - `GET /api/analyst/summary`
 - `GET /api/regions`
 - `GET /api/regions/geo`
@@ -72,7 +80,7 @@ All scripts run with Node TypeScript strip-types mode.
 
 ### Ops endpoints
 
-- `GET /healthz` (Railway healthcheck endpoint; live + DB readiness probe)
+- `GET /healthz`
 - `GET /api/ops/health`
 - `GET /api/ops/summary`
 - `GET /api/ops/cycle/latest`
@@ -80,26 +88,14 @@ All scripts run with Node TypeScript strip-types mode.
 - `GET /api/ops/sources/runs?limit=50`
 - `GET /api/ops/source-freshness`
 - `GET /api/ops/failures?limit=20`
-- `POST /api/ops/cycle/run`
+- `POST /api/ops/cycle/run` (blocked in `public_read_only`)
+
+## Civilian docs
+
+- `docs/for-civilians.md`
+- `docs/how-worldwatch-works.md`
+- `docs/why-the-readiness-gap-matters.md`
 
 ## Civilian acceptable use
 
 You may not use WorldWatch to support military targeting, kinetic operations, covert surveillance, sanctions evasion, unlawful export activity, or access by prohibited persons or entities. WorldWatch is intended for lawful public-source monitoring and analysis only.
-
-## ARC cohort baseline pipeline (PR2 follow-up)
-
-After PR2 cohort tables are generated, build ARC baseline summary tables with:
-
-- `python -m arc.cli build-baselines`
-
-Required inputs:
-
-- `outputs/cohort_tables/arc_player_weeks.csv`
-- `outputs/cohort_tables/arc_player_seasons.csv`
-
-Canonical outputs:
-
-- `outputs/summary_tables/arc_cohort_baselines.csv`
-- `outputs/summary_tables/arc_career_year_baselines.csv`
-
-If a parquet engine is installed (`pandas` + `pyarrow`), matching parquet files are also written next to the CSVs.
