@@ -62,7 +62,7 @@ export function renderPublicHome(posture: DeploymentPostureConfig): string {
         <article class="impact-card"><h3>Conflict</h3><p>Can shift safety, humanitarian access, migration pressure, and market confidence.</p></article>
         <article class="impact-card"><h3>Energy + Shipping</h3><p>Can affect fuel costs, delivery reliability, and supply continuity.</p></article>
         <article class="impact-card"><h3>Infrastructure stress</h3><p>Can disrupt transport, communications, and local service reliability.</p></article>
-        <article class="impact-card"><h3>AI-readiness signals</h3><p>Narrative shifts can move expectations quickly before physical confirmation arrives.</p></article>
+        <article class="impact-card"><h3>Information environment</h3><p>Public narrative and reporting shifts can change perception before other signals confirm direction.</p></article>
       </div>
     </div>
 
@@ -78,7 +78,7 @@ export function renderPublicHome(posture: DeploymentPostureConfig): string {
 
     <section class="section">
       <h2>Civilian summary cards</h2>
-      <p class="section-note">Top movers from latest WorldWatch dashboard payload.</p>
+      <p class="section-note">Top movers from latest WorldWatch dashboard payload (sorted by absolute 24h movement).</p>
       <div id="civilian-cards" class="cards-grid"></div>
     </section>
 
@@ -136,7 +136,9 @@ export function renderPublicHome(posture: DeploymentPostureConfig): string {
         return;
       }
 
-      container.innerHTML = regions.slice(0, 6).map((region) => {
+      const sortedRegions = [...regions].sort((a, b) => Math.abs(toNumber(b.delta_24h)) - Math.abs(toNumber(a.delta_24h)));
+
+      container.innerHTML = sortedRegions.slice(0, 6).map((region) => {
         const delta24 = toNumber(region.delta_24h);
         const delta7 = toNumber(region.delta_7d);
         const direction = delta24 > 0 ? 'up' : delta24 < 0 ? 'down' : 'flat';
